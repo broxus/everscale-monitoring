@@ -1,0 +1,1 @@
+## Everscale monitoring node
