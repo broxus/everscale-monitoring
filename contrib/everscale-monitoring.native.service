@@ -1,0 +1,16 @@
+[Unit]
+Description=everscale-monitoring
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=no
+WorkingDirectory=/etc/everscale-monitoring
+ExecReload=kill -HUP $MAINPID
+ExecStart=/usr/local/bin/everscale-monitoring run \
+    --config /etc/everscale-monitoring/config.yaml \
+    --global-config /etc/everscale-monitoring/ton-global.config.json
+
+[Install]
+WantedBy=multi-user.target
