@@ -87,10 +87,12 @@ impl TonSubscriber {
 
             if !block_info.after_split() && !block_info.after_merge() {
                 // Most common case
-                if let Some(shard) = self.metrics.shards.read().get(&shard_tag) {
+                let shards = self.metrics.shards.read();
+                if let Some(shard) = shards.get(&shard_tag) {
                     // Update existing shard metrics
                     shard.update(block_id.seq_no, transaction_count);
                 } else {
+                    drop(shards);
                     // Force update shard metrics (will only be executed for new shards)
                     match self.metrics.shards.write().entry(shard_tag) {
                         hash_map::Entry::Occupied(entry) => {
