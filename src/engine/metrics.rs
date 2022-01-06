@@ -19,6 +19,9 @@ pub struct MetricsState {
     pub mc_utime: AtomicU32,
     pub mc_avg_transaction_count: AverageValueCounter,
 
+    pub mc_software_versions: parking_lot::RwLock<BlockVersions>,
+    pub sc_software_versions: parking_lot::RwLock<BlockVersions>,
+
     pub engine_metrics: parking_lot::Mutex<Option<Arc<EngineMetrics>>>,
 }
 
@@ -26,6 +29,7 @@ impl std::fmt::Display for MetricsState {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         const COLLECTION: &str = "collection";
         const SHARD: &str = "shard";
+        const SOFTWARE_VERSION: &str = "software_version";
 
         f.begin_metric("frmon_aggregate")
             .label(COLLECTION, "blocks")
@@ -68,6 +72,24 @@ impl std::fmt::Display for MetricsState {
             f.begin_metric("frmon_sc_avgtrc")
                 .label(SHARD, &shard.short_name)
                 .value(shard.avg_transaction_count.reset().unwrap_or_default())?;
+        }
+
+        for (version, count) in &*self.mc_software_versions.read() {
+            let count = count.swap(0, Ordering::AcqRel);
+            if count > 0 {
+                f.begin_metric("frmon_mc_software_version")
+                    .label(SOFTWARE_VERSION, version)
+                    .value(count)?;
+            }
+        }
+
+        for (version, count) in &*self.sc_software_versions.read() {
+            let count = count.swap(0, Ordering::AcqRel);
+            if count > 0 {
+                f.begin_metric("frmon_sc_software_version")
+                    .label(SOFTWARE_VERSION, version)
+                    .value(count)?;
+            }
         }
 
         if let Some(engine) = &*self.engine_metrics.lock() {
@@ -124,3 +146,4 @@ fn make_short_shard_name(id: u64) -> String {
 }
 
 type ShardsMap = FxHashMap<u64, ShardState>;
+type BlockVersions = FxHashMap<u32, AtomicU32>;

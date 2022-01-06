@@ -1,5 +1,5 @@
 use std::collections::hash_map;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -25,6 +25,9 @@ impl TonSubscriber {
         let seqno = block_id.seq_no;
         let shard_tag = block_id.shard_id.shard_prefix_with_tag();
         let extra = block.read_extra()?;
+
+        let block_info = block.read_info()?;
+        let software_version = block_info.gen_software().map(|v| v.version);
 
         // Count transactions and messages
         let mut transaction_count = 0;
@@ -55,6 +58,29 @@ impl TonSubscriber {
             .transactions_total
             .fetch_add(transaction_count, Ordering::Release);
 
+        if let Some(software_version) = &software_version {
+            let versions_map = if block_id.is_masterchain() {
+                &self.metrics.mc_software_versions
+            } else {
+                &self.metrics.sc_software_versions
+            };
+
+            let versions = versions_map.read();
+            if let Some(count) = versions.get(software_version) {
+                count.fetch_add(1, Ordering::Release);
+            } else {
+                drop(versions);
+                match versions_map.write().entry(*software_version) {
+                    hash_map::Entry::Occupied(entry) => {
+                        entry.get().fetch_add(1, Ordering::Release);
+                    }
+                    hash_map::Entry::Vacant(entry) => {
+                        entry.insert(AtomicU32::new(1));
+                    }
+                }
+            }
+        }
+
         if block_id.is_masterchain() {
             // Update masterchain metrics
 
@@ -83,7 +109,6 @@ impl TonSubscriber {
         } else {
             // Update shard chains metrics
 
-            let block_info = block.read_info()?;
             let utime = block_info.gen_utime().0;
 
             if !block_info.after_split() && !block_info.after_merge() {
