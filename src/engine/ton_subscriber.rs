@@ -1,4 +1,4 @@
-use std::collections::hash_map;
+use std::collections::{btree_map, hash_map};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
@@ -72,10 +72,10 @@ impl TonSubscriber {
             } else {
                 drop(versions);
                 match versions_map.write().entry(*software_version) {
-                    hash_map::Entry::Occupied(entry) => {
+                    btree_map::Entry::Occupied(entry) => {
                         entry.get().fetch_add(1, Ordering::Release);
                     }
-                    hash_map::Entry::Vacant(entry) => {
+                    btree_map::Entry::Vacant(entry) => {
                         entry.insert(AtomicU32::new(1));
                     }
                 }

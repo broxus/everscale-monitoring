@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -144,4 +145,4 @@ fn make_short_shard_name(id: u64) -> String {
 }
 
 type ShardsMap = FxHashMap<u64, ShardState>;
-type BlockVersions = FxHashMap<u32, AtomicU32>;
+type BlockVersions = BTreeMap<u32, AtomicU32>;
