@@ -11,16 +11,17 @@ mod ton_subscriber;
 
 pub struct Engine {
     _exporter: Arc<pomfrit::MetricsExporter>,
-    _ton_subscriber: Arc<TonSubscriber>,
+    ton_subscriber: Arc<TonSubscriber>,
     ton_engine: Arc<ton_indexer::Engine>,
 }
 
 impl Engine {
     pub async fn new(config: AppConfig, global_config: ton_indexer::GlobalConfig) -> Result<Self> {
+        // Create metrics state
         let metrics_state = Arc::new(MetricsState::default());
 
+        // Create and spawn metrics exporter
         let (exporter, writer) = pomfrit::create_exporter(Some(config.metrics_settings)).await?;
-
         writer.spawn({
             let metrics_state = metrics_state.clone();
             move |buf| {
@@ -28,6 +29,7 @@ impl Engine {
             }
         });
 
+        // Create and sync TON node
         let ton_subscriber = TonSubscriber::new(metrics_state.clone());
         let ton_engine = ton_indexer::Engine::new(
             config
@@ -41,17 +43,28 @@ impl Engine {
         .await
         .context("Failed to start TON node")?;
 
-        *metrics_state.engine_metrics.lock() = Some(ton_engine.metrics().clone());
+        // Set engine metrics object
+        metrics_state.set_engine_metrics(ton_engine.metrics());
 
+        // Done
         Ok(Self {
             _exporter: exporter,
-            _ton_subscriber: ton_subscriber,
+            ton_subscriber,
             ton_engine,
         })
     }
 
     pub async fn start(&self) -> Result<()> {
-        self.ton_engine.start().await?;
+        self.ton_engine
+            .start()
+            .await
+            .context("Failed to start TON node")?;
+
+        self.ton_subscriber
+            .start(&self.ton_engine)
+            .await
+            .context("Failed to init config metrics")?;
+
         Ok(())
     }
 }

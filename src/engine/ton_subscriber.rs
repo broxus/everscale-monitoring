@@ -1,8 +1,6 @@
-use std::collections::{btree_map, hash_map};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use ton_block::{BinTreeType, Deserializable, HashmapAugType};
 use ton_indexer::utils::*;
 use ton_indexer::*;
@@ -16,6 +14,29 @@ pub struct TonSubscriber {
 impl TonSubscriber {
     pub fn new(metrics: Arc<MetricsState>) -> Arc<Self> {
         Arc::new(Self { metrics })
+    }
+
+    pub async fn start(&self, engine: &ton_indexer::Engine) -> Result<()> {
+        let last_key_block = engine
+            .load_last_key_block()
+            .await
+            .context("Failed to load last key block")?;
+
+        let extra = last_key_block
+            .block()
+            .read_extra()
+            .context("Failed to read block extra")?;
+        let mc_extra = extra
+            .read_custom()
+            .context("Failed to read extra custom")?
+            .ok_or(TonSubscriberError::NotAMasterChainBlock)?;
+
+        let config = mc_extra.config().context("Key block doesn't have config")?;
+        self.metrics
+            .update_config_metrics(last_key_block.id().seq_no, config)
+            .context("Failed to update config metrics")?;
+
+        Ok(())
     }
 
     fn update_metrics(&self, block: &BlockStuff) -> Result<()> {
@@ -51,40 +72,17 @@ impl TonSubscriber {
         })?;
 
         // Update aggregated metrics
-        self.metrics.blocks_total.fetch_add(1, Ordering::Release);
-        self.metrics
-            .messages_total
-            .fetch_add(message_count, Ordering::Release);
-        self.metrics
-            .transactions_total
-            .fetch_add(transaction_count, Ordering::Release);
+        self.metrics.aggregate_block_info(BlockInfo {
+            message_count,
+            transaction_count,
+        });
 
-        if let Some(software_version) = &software_version {
-            let versions_map = if block_id.is_masterchain() {
-                &self.metrics.mc_software_versions
-            } else {
-                &self.metrics.sc_software_versions
-            };
-
-            let versions = versions_map.read();
-            if let Some(count) = versions.get(software_version) {
-                count.fetch_add(1, Ordering::Release);
-            } else {
-                drop(versions);
-                match versions_map.write().entry(*software_version) {
-                    btree_map::Entry::Occupied(entry) => {
-                        entry.get().fetch_add(1, Ordering::Release);
-                    }
-                    btree_map::Entry::Vacant(entry) => {
-                        entry.insert(AtomicU32::new(1));
-                    }
-                }
-            }
+        if let Some(software_version) = software_version {
+            self.metrics
+                .handle_software_version(block_id.is_masterchain(), software_version);
         }
 
         if block_id.is_masterchain() {
-            // Update masterchain metrics
-
             // Count shards
             let mc_extra = extra
                 .read_custom()?
@@ -101,68 +99,32 @@ impl TonSubscriber {
                 Ok(true)
             })?;
 
-            self.metrics
-                .shard_count
-                .swap(shard_count, Ordering::Release);
-            self.metrics.mc_seq_no.store(seqno, Ordering::Release);
-            self.metrics.mc_utime.store(utime, Ordering::Release);
-            self.metrics
-                .mc_avg_transaction_count
-                .push(transaction_count);
+            self.metrics.update_masterchain_stats(MasterChainStats {
+                shard_count,
+                seqno,
+                utime,
+                transaction_count,
+            });
+
+            if let Some(config) = mc_extra.config() {
+                self.metrics.update_config_metrics(seqno, config)?;
+            }
         } else {
             // Update shard chains metrics
+            let stats = ShardChainStats {
+                shard_tag,
+                seqno,
+                utime,
+                transaction_count,
+            };
 
             if !block_info.after_split() && !block_info.after_merge() {
                 // Most common case
-                let shards = self.metrics.shards.read();
-                if let Some(shard) = shards.get(&shard_tag) {
-                    // Update existing shard metrics
-                    shard.update(block_id.seq_no, utime, transaction_count);
-                } else {
-                    drop(shards);
-                    // Force update shard metrics (will only be executed for new shards)
-                    match self.metrics.shards.write().entry(shard_tag) {
-                        hash_map::Entry::Occupied(entry) => {
-                            entry.get().update(seqno, utime, transaction_count)
-                        }
-                        hash_map::Entry::Vacant(entry) => {
-                            entry.insert(ShardState::new(
-                                shard_tag,
-                                seqno,
-                                utime,
-                                transaction_count,
-                            ));
-                        }
-                    }
-                }
+                self.metrics.update_shard_chain_stats(stats);
             } else {
                 let prev_ids = block_info.read_prev_ids()?;
-
-                // Force update shard metrics
-                let mut shards = self.metrics.shards.write();
-                match shards.entry(shard_tag) {
-                    hash_map::Entry::Occupied(entry) => {
-                        entry.get().update(seqno, utime, transaction_count)
-                    }
-                    hash_map::Entry::Vacant(entry) => {
-                        entry.insert(ShardState::new(shard_tag, seqno, utime, transaction_count));
-                    }
-                }
-
-                // Remove outdated shards
-                if prev_ids.len() == 1 {
-                    let prev_shard_id = &prev_ids[0].shard_id;
-                    let (left, right) = prev_shard_id.split()?;
-                    if shards.contains_key(&left.shard_prefix_with_tag())
-                        && shards.contains_key(&right.shard_prefix_with_tag())
-                    {
-                        shards.remove(&prev_shard_id.shard_prefix_with_tag());
-                    }
-                } else {
-                    for block_id in prev_ids {
-                        shards.remove(&block_id.shard_id.shard_prefix_with_tag());
-                    }
-                }
+                self.metrics
+                    .force_update_shard_chain_stats(stats, &prev_ids);
             }
         }
 
