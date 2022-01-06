@@ -93,19 +93,17 @@ impl std::fmt::Display for MetricsState {
         }
 
         if let Some(engine) = &*self.engine_metrics.lock() {
-            let mc_seqno = engine.last_mc_block_seqno.load(Ordering::Acquire);
-            if mc_seqno > 0 {
-                f.begin_metric("mc_time_diff")
-                    .value(engine.mc_time_diff.load(Ordering::Acquire))?;
-            }
+            f.begin_metric("frmon_mc_time_diff")
+                .value(engine.mc_time_diff.load(Ordering::Acquire))?;
 
-            let mc_shard_seqno = engine
-                .last_shard_client_mc_block_seqno
-                .load(Ordering::Acquire);
-            if mc_shard_seqno > 0 {
-                f.begin_metric("mc_shard_time_diff")
-                    .value(engine.shard_client_time_diff.load(Ordering::Acquire))?;
-            }
+            f.begin_metric("frmon_mc_shard_seqno").value(
+                engine
+                    .last_shard_client_mc_block_seqno
+                    .load(Ordering::Acquire),
+            )?;
+
+            f.begin_metric("frmon_mc_shard_time_diff")
+                .value(engine.shard_client_time_diff.load(Ordering::Acquire))?;
         }
 
         f.begin_metric("frmon_updated").value(now())?;
