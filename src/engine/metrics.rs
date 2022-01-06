@@ -1,7 +1,9 @@
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::Arc;
 
 use pomfrit::formatter::*;
-use tiny_adnl::utils::FxHashMap;
+use tiny_adnl::utils::{now, FxHashMap};
+use ton_indexer::EngineMetrics;
 
 use crate::utils::AverageValueCounter;
 
@@ -13,7 +15,11 @@ pub struct MetricsState {
 
     pub shard_count: AtomicU32,
     pub shards: parking_lot::RwLock<ShardsMap>,
+    pub mc_seq_no: AtomicU32,
+    pub mc_utime: AtomicU32,
     pub mc_avg_transaction_count: AverageValueCounter,
+
+    pub engine_metrics: parking_lot::Mutex<Option<Arc<EngineMetrics>>>,
 }
 
 impl std::fmt::Display for MetricsState {
@@ -21,26 +27,32 @@ impl std::fmt::Display for MetricsState {
         const COLLECTION: &str = "collection";
         const SHARD: &str = "shard";
 
-        f.begin_metric("frmulmon_aggregate")
+        f.begin_metric("frmon_aggregate")
             .label(COLLECTION, "blocks")
             .value(self.blocks_total.load(Ordering::Acquire))?;
 
-        f.begin_metric("frmulmon_aggregate")
+        f.begin_metric("frmon_aggregate")
             .label(COLLECTION, "messages")
             .value(self.messages_total.load(Ordering::Acquire))?;
 
-        f.begin_metric("frmulmon_aggregate")
+        f.begin_metric("frmon_aggregate")
             .label(COLLECTION, "transactions")
             .value(self.transactions_total.load(Ordering::Acquire))?;
 
         f.begin_metric("frmon_mc_shards")
             .value(self.shard_count.load(Ordering::Acquire))?;
 
+        f.begin_metric("frmon_mc_seqno")
+            .value(self.mc_seq_no.load(Ordering::Acquire))?;
+
+        f.begin_metric("frmon_mc_utime")
+            .value(self.mc_utime.load(Ordering::Acquire))?;
+
         f.begin_metric("frmon_mc_avgtrc")
             .value(self.mc_avg_transaction_count.reset().unwrap_or_default())?;
 
         for shard in self.shards.read().values() {
-            let seqno = shard.seq_no.load(Ordering::Acquire);
+            let (seqno, utime) = shard.seqno_and_utime();
             if seqno == 0 {
                 continue;
             }
@@ -49,10 +61,32 @@ impl std::fmt::Display for MetricsState {
                 .label(SHARD, &shard.short_name)
                 .value(seqno)?;
 
+            f.begin_metric("frmon_sc_utime")
+                .label(SHARD, &shard.short_name)
+                .value(utime)?;
+
             f.begin_metric("frmon_sc_avgtrc")
                 .label(SHARD, &shard.short_name)
                 .value(shard.avg_transaction_count.reset().unwrap_or_default())?;
         }
+
+        if let Some(engine) = &*self.engine_metrics.lock() {
+            let mc_seqno = engine.last_mc_block_seqno.load(Ordering::Acquire);
+            if mc_seqno > 0 {
+                f.begin_metric("mc_time_diff")
+                    .value(engine.mc_time_diff.load(Ordering::Acquire))?;
+            }
+
+            let mc_shard_seqno = engine
+                .last_shard_client_mc_block_seqno
+                .load(Ordering::Acquire);
+            if mc_shard_seqno > 0 {
+                f.begin_metric("mc_shard_time_diff")
+                    .value(engine.shard_client_time_diff.load(Ordering::Acquire))?;
+            }
+        }
+
+        f.begin_metric("frmon_updated").value(now())?;
 
         Ok(())
     }
@@ -60,22 +94,28 @@ impl std::fmt::Display for MetricsState {
 
 pub struct ShardState {
     pub short_name: String,
-    pub seq_no: AtomicU32,
+    pub seqno_and_utime: AtomicU64,
     pub avg_transaction_count: AverageValueCounter,
 }
 
 impl ShardState {
-    pub fn new(id: u64, seq_no: u32, transaction_count: u32) -> Self {
+    pub fn new(id: u64, seqno: u32, utime: u32, transaction_count: u32) -> Self {
         ShardState {
             short_name: make_short_shard_name(id),
-            seq_no: AtomicU32::new(seq_no),
+            seqno_and_utime: AtomicU64::new(((seqno as u64) << 32) | utime as u64),
             avg_transaction_count: AverageValueCounter::with_value(transaction_count),
         }
     }
 
-    pub fn update(&self, seq_no: u32, transaction_count: u32) {
-        self.seq_no.store(seq_no, Ordering::Release);
+    pub fn update(&self, seqno: u32, utime: u32, transaction_count: u32) {
+        self.seqno_and_utime
+            .store(((seqno as u64) << 32) | utime as u64, Ordering::Release);
         self.avg_transaction_count.push(transaction_count);
+    }
+
+    pub fn seqno_and_utime(&self) -> (u32, u32) {
+        let value = self.seqno_and_utime.load(Ordering::Acquire);
+        ((value >> 32) as u32, value as u32)
     }
 }
 

@@ -28,7 +28,7 @@ impl Engine {
             }
         });
 
-        let ton_subscriber = TonSubscriber::new(metrics_state);
+        let ton_subscriber = TonSubscriber::new(metrics_state.clone());
         let ton_engine = ton_indexer::Engine::new(
             config
                 .node_settings
@@ -40,6 +40,8 @@ impl Engine {
         )
         .await
         .context("Failed to start TON node")?;
+
+        *metrics_state.engine_metrics.lock() = Some(ton_engine.metrics().clone());
 
         Ok(Self {
             _exporter: exporter,

@@ -18,11 +18,11 @@ impl TonSubscriber {
         Arc::new(Self { metrics })
     }
 
-    fn update_metrics(&self, _meta: BriefBlockMeta, block: &BlockStuff) -> Result<()> {
+    fn update_metrics(&self, block: &BlockStuff) -> Result<()> {
         // Prepare context
         let block_id = block.id();
         let block = block.block();
-        let seq_no = block_id.seq_no;
+        let seqno = block_id.seq_no;
         let shard_tag = block_id.shard_id.shard_prefix_with_tag();
         let extra = block.read_extra()?;
 
@@ -84,22 +84,28 @@ impl TonSubscriber {
             // Update shard chains metrics
 
             let block_info = block.read_info()?;
+            let utime = block_info.gen_utime().0;
 
             if !block_info.after_split() && !block_info.after_merge() {
                 // Most common case
                 let shards = self.metrics.shards.read();
                 if let Some(shard) = shards.get(&shard_tag) {
                     // Update existing shard metrics
-                    shard.update(block_id.seq_no, transaction_count);
+                    shard.update(block_id.seq_no, utime, transaction_count);
                 } else {
                     drop(shards);
                     // Force update shard metrics (will only be executed for new shards)
                     match self.metrics.shards.write().entry(shard_tag) {
                         hash_map::Entry::Occupied(entry) => {
-                            entry.get().update(seq_no, transaction_count)
+                            entry.get().update(seqno, utime, transaction_count)
                         }
                         hash_map::Entry::Vacant(entry) => {
-                            entry.insert(ShardState::new(shard_tag, seq_no, transaction_count));
+                            entry.insert(ShardState::new(
+                                shard_tag,
+                                seqno,
+                                utime,
+                                transaction_count,
+                            ));
                         }
                     }
                 }
@@ -110,10 +116,10 @@ impl TonSubscriber {
                 let mut shards = self.metrics.shards.write();
                 match shards.entry(shard_tag) {
                     hash_map::Entry::Occupied(entry) => {
-                        entry.get().update(seq_no, transaction_count)
+                        entry.get().update(seqno, utime, transaction_count)
                     }
                     hash_map::Entry::Vacant(entry) => {
-                        entry.insert(ShardState::new(shard_tag, seq_no, transaction_count));
+                        entry.insert(ShardState::new(shard_tag, seqno, utime, transaction_count));
                     }
                 }
 
@@ -142,12 +148,12 @@ impl TonSubscriber {
 impl ton_indexer::Subscriber for TonSubscriber {
     async fn process_block(
         &self,
-        meta: BriefBlockMeta,
+        _: BriefBlockMeta,
         block: &BlockStuff,
-        _block_proof: Option<&BlockProofStuff>,
-        _shard_state: &ShardStateStuff,
+        _: Option<&BlockProofStuff>,
+        _: &ShardStateStuff,
     ) -> Result<()> {
-        if let Err(e) = self.update_metrics(meta, block) {
+        if let Err(e) = self.update_metrics(block) {
             log::error!("Failed to update metrics: {:?}", e);
         }
         Ok(())
