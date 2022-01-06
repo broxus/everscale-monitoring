@@ -27,6 +27,7 @@ impl TonSubscriber {
         let extra = block.read_extra()?;
 
         let block_info = block.read_info()?;
+        let utime = block_info.gen_utime().0;
         let software_version = block_info.gen_software().map(|v| v.version);
 
         // Count transactions and messages
@@ -103,13 +104,13 @@ impl TonSubscriber {
             self.metrics
                 .shard_count
                 .swap(shard_count, Ordering::Release);
+            self.metrics.mc_seq_no.store(seqno, Ordering::Release);
+            self.metrics.mc_utime.store(utime, Ordering::Release);
             self.metrics
                 .mc_avg_transaction_count
                 .push(transaction_count);
         } else {
             // Update shard chains metrics
-
-            let utime = block_info.gen_utime().0;
 
             if !block_info.after_split() && !block_info.after_merge() {
                 // Most common case
