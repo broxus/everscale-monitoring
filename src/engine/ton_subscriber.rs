@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -12,6 +13,7 @@ pub struct TonSubscriber {
     metrics: Arc<MetricsState>,
     elector_address: ton_block::MsgAddressInt,
     elector_address_hash: ton_types::UInt256,
+    first_mc_block: AtomicBool,
 }
 
 impl TonSubscriber {
@@ -32,6 +34,7 @@ impl TonSubscriber {
             metrics,
             elector_address,
             elector_address_hash,
+            first_mc_block: AtomicBool::new(true),
         })
     }
 
@@ -75,7 +78,7 @@ impl TonSubscriber {
         let mut transaction_count = 0;
         let mut message_count = 0;
 
-        let mut update_elector_state = false;
+        let mut update_elector_state = block_info.key_block();
 
         let account_blocks = extra.read_account_blocks()?;
         account_blocks.iterate_objects(|block| {
@@ -89,7 +92,7 @@ impl TonSubscriber {
                             message_count += 1;
                         }
 
-                        update_elector_state = matches!(
+                        update_elector_state |= matches!(
                             in_msg.header(),
                             ton_block::CommonMsgInfo::IntMsgInfo(
                                 ton_block::InternalMessageHeader {
@@ -144,17 +147,25 @@ impl TonSubscriber {
                 transaction_count,
             });
 
-            if update_elector_state {
-                let accounts = state
-                    .state()
-                    .read_accounts()?
-                    .get(&self.elector_address_hash);
-
-                // TODO: handle elector account
-            }
-
             if let Some(config) = mc_extra.config() {
                 self.metrics.update_config_metrics(seqno, config)?;
+            }
+
+            if update_elector_state || self.first_mc_block.load(Ordering::Acquire) {
+                let account = state
+                    .state()
+                    .read_accounts()
+                    .context("Failed to read shard accounts")?
+                    .get(&self.elector_address_hash)
+                    .context("Failed to get elector account")?;
+
+                if let Some(account) = account {
+                    self.metrics
+                        .update_elections_state(&account)
+                        .context("Failed to update elector state")?;
+                }
+
+                self.first_mc_block.store(false, Ordering::Release);
             }
         } else {
             // Update shard chains metrics

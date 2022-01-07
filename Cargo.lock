@@ -554,6 +554,7 @@ dependencies = [
  "hex",
  "log",
  "log4rs",
+ "nekoton-abi",
  "once_cell",
  "parking_lot",
  "pomfrit",
@@ -568,6 +569,7 @@ dependencies = [
  "tiny-adnl",
  "tokio",
  "ton-indexer",
+ "ton_abi",
  "ton_block",
  "ton_types",
  "warp",
@@ -1268,6 +1270,43 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
+]
+
+[[package]]
+name = "nekoton-abi"
+version = "0.9.0"
+source = "git+https://github.com/broxus/nekoton.git#1c54cc64a2b4b266a9ba8b677fbf7542bc13bd2a"
+dependencies = [
+ "anyhow",
+ "base64",
+ "ed25519-dalek",
+ "hex",
+ "log",
+ "nekoton-derive",
+ "nekoton-utils",
+ "num-bigint",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "sha2",
+ "smallvec",
+ "thiserror",
+ "ton_abi",
+ "ton_block",
+ "ton_executor",
+ "ton_types",
+ "ton_vm",
+]
+
+[[package]]
+name = "nekoton-derive"
+version = "0.9.0"
+source = "git+https://github.com/broxus/nekoton.git#1c54cc64a2b4b266a9ba8b677fbf7542bc13bd2a"
+dependencies = [
+ "either",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -2337,6 +2376,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "ton_abi"
+version = "2.1.0"
+source = "git+https://github.com/broxus/ton-labs-abi.git#731a6da544bd44d26bb387cfa16783536d1adfc0"
+dependencies = [
+ "anyhow",
+ "base64",
+ "byteorder",
+ "chrono",
+ "ed25519",
+ "ed25519-dalek",
+ "hex",
+ "num-bigint",
+ "num-traits",
+ "serde",
+ "serde_json",
+ "sha2",
+ "smallvec",
+ "thiserror",
+ "ton_block",
+ "ton_types",
+]
+
+[[package]]
 name = "ton_api"
 version = "0.0.1"
 source = "git+https://github.com/broxus/ton-labs-tl.git#0698a6580b88710c431c30002c7b31783d7c3670"
@@ -2379,6 +2441,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ton_executor"
+version = "1.15.34"
+source = "git+https://github.com/broxus/ton-labs-executor.git#dbdf43da28045abf41fe11d817bb89e7c2739c00"
+dependencies = [
+ "anyhow",
+ "base64",
+ "clear_on_drop",
+ "log",
+ "num",
+ "num-traits",
+ "thiserror",
+ "ton_block",
+ "ton_types",
+ "ton_vm",
+]
+
+[[package]]
 name = "ton_tl_codegen"
 version = "0.0.1"
 source = "git+https://github.com/broxus/ton-labs-tl.git#0698a6580b88710c431c30002c7b31783d7c3670"
@@ -2409,6 +2488,26 @@ dependencies = [
  "sha2",
  "smallvec",
  "thiserror",
+]
+
+[[package]]
+name = "ton_vm"
+version = "1.8.20"
+source = "git+https://github.com/broxus/ton-labs-vm.git#b4d9455e9a3cc781f6649a2b15e98f84abde576e"
+dependencies = [
+ "anyhow",
+ "ed25519",
+ "ed25519-dalek",
+ "hex",
+ "lazy_static",
+ "log",
+ "num",
+ "num-traits",
+ "rand",
+ "sha2",
+ "smallvec",
+ "thiserror",
+ "ton_types",
 ]
 
 [[package]]

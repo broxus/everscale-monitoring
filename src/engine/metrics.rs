@@ -2,10 +2,13 @@ use std::collections::{btree_map, hash_map, BTreeMap};
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
+use nekoton_abi::*;
+use once_cell::race::OnceBox;
 use pomfrit::formatter::*;
 use tiny_adnl::utils::*;
 use ton_indexer::EngineMetrics;
+use ton_types::UInt256;
 
 use crate::utils::AverageValueCounter;
 
@@ -46,11 +49,8 @@ pub struct MetricsState {
     mc_software_versions: parking_lot::RwLock<BlockVersions>,
     sc_software_versions: parking_lot::RwLock<BlockVersions>,
 
-    elections_stake_value: parking_lot::RwLock<StakesMap>,
-    elections_active_id: AtomicU32,
-
+    elections_state: parking_lot::RwLock<ElectionsState>,
     config_metrics: parking_lot::Mutex<Option<ConfigMetrics>>,
-
     engine_metrics: parking_lot::Mutex<Option<Arc<EngineMetrics>>>,
 }
 
@@ -146,6 +146,10 @@ impl MetricsState {
         }
     }
 
+    pub fn update_elections_state(&self, elector_account: &ton_block::ShardAccount) -> Result<()> {
+        self.elections_state.write().update(elector_account)
+    }
+
     pub fn update_config_metrics(
         &self,
         key_block_seqno: u32,
@@ -229,14 +233,22 @@ impl std::fmt::Display for MetricsState {
             }
         }
 
-        for (address, stake) in &*self.elections_stake_value.read() {
-            f.begin_metric("elections_stake_value")
-                .label(ADDRESS, address)
-                .value(*stake)?;
-        }
+        {
+            let elections = self.elections_state.read();
+            if let Some(stakes) = &elections.stakes {
+                for (address, stake) in stakes {
+                    f.begin_metric("elections_stake_value")
+                        .label(ADDRESS, address)
+                        .value(*stake)?;
+                }
 
-        f.begin_metric("elections_active_id")
-            .value(self.elections_active_id.load(Ordering::Acquire))?;
+                f.begin_metric("elections_elect_at")
+                    .value(elections.elect_at)?;
+
+                f.begin_metric("elections_elect_close")
+                    .value(elections.elect_close)?;
+            }
+        }
 
         if let Some(engine) = &*self.engine_metrics.lock() {
             f.begin_metric("frmon_mc_time_diff")
@@ -360,6 +372,142 @@ impl ShardState {
         let value = self.seqno_and_utime.load(Ordering::Acquire);
         ((value >> 32) as u32, value as u32)
     }
+}
+
+#[derive(Default)]
+struct ElectionsState {
+    last_transaction_lt: u64,
+    stakes: Option<StakesMap>,
+    elect_at: u32,
+    elect_close: u32,
+    min_stake: u128,
+    total_stake: u128,
+}
+
+impl ElectionsState {
+    fn update(&mut self, elector_account: &ton_block::ShardAccount) -> Result<()> {
+        if elector_account.last_trans_lt() <= self.last_transaction_lt {
+            return Ok(());
+        }
+
+        log::info!("Updating elector state");
+        let account = match elector_account.read_account()? {
+            ton_block::Account::Account(account) => account,
+            ton_block::Account::AccountNone => return Ok(()),
+        };
+
+        let state = match account.storage.state {
+            ton_block::AccountState::AccountActive { state_init, .. } => state_init,
+            _ => return Ok(()),
+        };
+
+        let data = match state.data {
+            Some(data) => data,
+            None => return Ok(()),
+        };
+
+        let current_election: MaybeRef<CurrentElectionData> = ton_abi::TokenValue::decode_params(
+            elector_state_params(),
+            data.into(),
+            &ton_abi::contract::ABI_VERSION_2_1,
+            true,
+        )
+        .context("Failed to decode elector state data")?
+        .unpack_first()
+        .context("Failed to parse decoded elector state data")?;
+
+        if let Some(election) = current_election.0 {
+            self.stakes = Some(
+                election
+                    .members
+                    .into_values()
+                    .map(|item| (format!("-1:{:x}", item.src_addr), item.msg_value))
+                    .collect(),
+            );
+            self.elect_at = election.elect_at;
+            self.elect_close = election.elect_close;
+            self.min_stake = election.min_stake;
+            self.total_stake = election.total_stake;
+        } else {
+            self.stakes = None;
+        }
+
+        Ok(())
+    }
+}
+
+fn elector_state_params() -> &'static [ton_abi::Param] {
+    static ABI: OnceBox<Vec<ton_abi::Param>> = OnceBox::new();
+    ABI.get_or_init(|| {
+        Box::new(vec![ton_abi::Param::new(
+            "current_election",
+            MaybeRef::<CurrentElectionData>::param_type(),
+        )])
+    })
+}
+
+#[derive(Debug, UnpackAbi, KnownParamType)]
+pub struct CurrentElectionData {
+    #[abi(uint32)]
+    pub elect_at: u32,
+    #[abi(uint32)]
+    pub elect_close: u32,
+    #[abi(gram)]
+    pub min_stake: u128,
+    #[abi(gram)]
+    pub total_stake: u128,
+    #[abi(
+        unpack_with = "unpack_map_uint256_tuple",
+        param_type_with = "members_param_type"
+    )]
+    pub members: BTreeMap<UInt256, ElectionMember>,
+    #[abi(bool)]
+    pub failed: bool,
+    #[abi(bool)]
+    pub finished: bool,
+}
+
+#[derive(Debug, UnpackAbi, KnownParamType)]
+pub struct ElectionMember {
+    #[abi(gram)]
+    pub msg_value: u64,
+    #[abi(uint32)]
+    pub created_at: u32,
+    #[abi(uint32)]
+    pub max_factor: u32,
+    #[abi(with = "uint256_bytes")]
+    pub src_addr: UInt256,
+    #[abi(with = "uint256_bytes")]
+    pub adnl_addr: UInt256,
+}
+
+pub fn unpack_map_uint256_tuple<V>(
+    value: &ton_abi::TokenValue,
+) -> UnpackerResult<BTreeMap<UInt256, V>>
+where
+    ton_abi::TokenValue: UnpackAbi<V>,
+{
+    match value {
+        ton_abi::TokenValue::Map(ton_abi::ParamType::Uint(256), _, values) => {
+            let mut map = BTreeMap::<UInt256, V>::new();
+            for (key, value) in values {
+                let key = key
+                    .parse::<UInt256>()
+                    .map_err(|_| UnpackerError::InvalidAbi)?;
+                let value: V = value.to_owned().unpack()?;
+                map.insert(key, value);
+            }
+            Ok(map)
+        }
+        _ => Err(UnpackerError::InvalidAbi),
+    }
+}
+
+fn members_param_type() -> ton_abi::ParamType {
+    ton_abi::ParamType::Map(
+        Box::new(UInt256::param_type()),
+        Box::new(ElectionMember::param_type()),
+    )
 }
 
 fn make_short_shard_name(id: u64) -> String {

@@ -25,11 +25,13 @@ serde_yaml = "0.8"
 thiserror = "1.0"
 tokio = { version = '1', features = ["rt-multi-thread", "time", "sync", "macros"] }
 warp = "0.3"
-
 pomfrit = "0.1"
+
+nekoton-abi = { git = "https://github.com/broxus/nekoton.git", features = ["derive"] }
 
 ton-indexer = { git = "https://github.com/broxus/ton-indexer.git" }
 tiny-adnl = { git = "https://github.com/broxus/tiny-adnl.git" }
 
 ton_block = { git = "https://github.com/broxus/ton-labs-block.git" }
 ton_types = { git = "https://github.com/broxus/ton-labs-types.git" }
+ton_abi = { git = "https://github.com/broxus/ton-labs-abi.git" }
