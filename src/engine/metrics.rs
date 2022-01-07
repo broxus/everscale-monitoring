@@ -197,22 +197,19 @@ impl std::fmt::Display for MetricsState {
             .value(self.mc_avg_transaction_count.reset().unwrap_or_default())?;
 
         for shard in self.shards.read().values() {
-            let (seqno, utime) = shard.seqno_and_utime();
-            if seqno == 0 {
-                continue;
+            if let Some((seqno, utime)) = shard.load_seqno_and_utime() {
+                f.begin_metric("frmon_sc_seqno")
+                    .label(SHARD, &shard.short_name)
+                    .value(seqno)?;
+
+                f.begin_metric("frmon_sc_utime")
+                    .label(SHARD, &shard.short_name)
+                    .value(utime)?;
+
+                f.begin_metric("frmon_sc_avgtrc")
+                    .label(SHARD, &shard.short_name)
+                    .value(shard.avg_transaction_count.reset().unwrap_or_default())?;
             }
-
-            f.begin_metric("frmon_sc_seqno")
-                .label(SHARD, &shard.short_name)
-                .value(seqno)?;
-
-            f.begin_metric("frmon_sc_utime")
-                .label(SHARD, &shard.short_name)
-                .value(utime)?;
-
-            f.begin_metric("frmon_sc_avgtrc")
-                .label(SHARD, &shard.short_name)
-                .value(shard.avg_transaction_count.reset().unwrap_or_default())?;
         }
 
         for (version, count) in &*self.mc_software_versions.read() {
@@ -352,25 +349,36 @@ struct ShardState {
 }
 
 impl ShardState {
+    const DIRTY_FLAG: u64 = 0x0000_0000_8000_0000;
+    const DIRTY_MASK: u64 = !Self::DIRTY_FLAG;
+
     fn new(stats: ShardChainStats) -> Self {
         ShardState {
             short_name: make_short_shard_name(stats.shard_tag),
-            seqno_and_utime: AtomicU64::new(((stats.seqno as u64) << 32) | stats.utime as u64),
+            seqno_and_utime: AtomicU64::new(
+                (((stats.seqno as u64) << 32) | stats.utime as u64) | Self::DIRTY_FLAG,
+            ),
             avg_transaction_count: AverageValueCounter::with_value(stats.transaction_count),
         }
     }
 
     fn update(&self, stats: &ShardChainStats) {
         self.seqno_and_utime.store(
-            ((stats.seqno as u64) << 32) | stats.utime as u64,
+            (((stats.seqno as u64) << 32) | stats.utime as u64) | Self::DIRTY_FLAG,
             Ordering::Release,
         );
         self.avg_transaction_count.push(stats.transaction_count);
     }
 
-    fn seqno_and_utime(&self) -> (u32, u32) {
-        let value = self.seqno_and_utime.load(Ordering::Acquire);
-        ((value >> 32) as u32, value as u32)
+    fn load_seqno_and_utime(&self) -> Option<(u32, u32)> {
+        let value = self
+            .seqno_and_utime
+            .fetch_and(Self::DIRTY_MASK, Ordering::AcqRel);
+        if value & Self::DIRTY_FLAG != 0 {
+            Some(((value >> 32) as u32, value as u32))
+        } else {
+            None
+        }
     }
 }
 
