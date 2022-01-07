@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -9,11 +10,29 @@ use super::metrics::*;
 
 pub struct TonSubscriber {
     metrics: Arc<MetricsState>,
+    elector_address: ton_block::MsgAddressInt,
+    elector_address_hash: ton_types::UInt256,
 }
 
 impl TonSubscriber {
     pub fn new(metrics: Arc<MetricsState>) -> Arc<Self> {
-        Arc::new(Self { metrics })
+        let elector_address_hash = ton_types::UInt256::from_str(
+            "3333333333333333333333333333333333333333333333333333333333333333",
+        )
+        .expect("Shouldn't fail");
+
+        let elector_address = ton_block::MsgAddressInt::with_standart(
+            None,
+            -1,
+            ton_types::SliceData::from(&elector_address_hash),
+        )
+        .expect("Shouldn't fail");
+
+        Arc::new(Self {
+            metrics,
+            elector_address,
+            elector_address_hash,
+        })
     }
 
     pub async fn start(&self, engine: &ton_indexer::Engine) -> Result<()> {
@@ -39,12 +58,13 @@ impl TonSubscriber {
         Ok(())
     }
 
-    fn update_metrics(&self, block: &BlockStuff) -> Result<()> {
+    fn update_metrics(&self, block: &BlockStuff, state: &ShardStateStuff) -> Result<()> {
         // Prepare context
         let block_id = block.id();
         let block = block.block();
         let seqno = block_id.seq_no;
         let shard_tag = block_id.shard_id.shard_prefix_with_tag();
+        let is_masterchain = block_id.is_masterchain();
         let extra = block.read_extra()?;
 
         let block_info = block.read_info()?;
@@ -55,19 +75,37 @@ impl TonSubscriber {
         let mut transaction_count = 0;
         let mut message_count = 0;
 
+        let mut update_elector_state = false;
+
         let account_blocks = extra.read_account_blocks()?;
         account_blocks.iterate_objects(|block| {
-            block.transactions().iterate_objects(|transaction| {
-                transaction_count += 1;
-                message_count += transaction.0.outmsg_cnt as u32;
-                if let Some(in_msg) = transaction.0.read_in_msg()? {
-                    if in_msg.is_inbound_external() {
-                        message_count += 1;
-                    }
-                }
+            block
+                .transactions()
+                .iterate_objects(|ton_block::InRefValue(transaction)| {
+                    transaction_count += 1;
+                    message_count += transaction.outmsg_cnt as u32;
+                    if let Some(in_msg) = transaction.read_in_msg()? {
+                        if in_msg.is_inbound_external() {
+                            message_count += 1;
+                        }
 
-                Ok(true)
-            })?;
+                        update_elector_state = matches!(
+                            in_msg.header(),
+                            ton_block::CommonMsgInfo::IntMsgInfo(
+                                ton_block::InternalMessageHeader {
+                                    value,
+                                    dst,
+                                    src: ton_block::MsgAddressIntOrNone::Some(src),
+                                    ..
+                                },
+                            ) if in_msg.body().is_some()
+                                && value.grams.0 > ELECTOR_UPDATE_THRESHOLD
+                                && src.workchain_id() == ton_block::MASTERCHAIN_ID
+                                && dst == &self.elector_address
+                        );
+                    }
+                    Ok(true)
+                })?;
             Ok(true)
         })?;
 
@@ -79,10 +117,10 @@ impl TonSubscriber {
 
         if let Some(software_version) = software_version {
             self.metrics
-                .handle_software_version(block_id.is_masterchain(), software_version);
+                .handle_software_version(is_masterchain, software_version);
         }
 
-        if block_id.is_masterchain() {
+        if is_masterchain {
             // Count shards
             let mc_extra = extra
                 .read_custom()?
@@ -105,6 +143,15 @@ impl TonSubscriber {
                 utime,
                 transaction_count,
             });
+
+            if update_elector_state {
+                let accounts = state
+                    .state()
+                    .read_accounts()?
+                    .get(&self.elector_address_hash);
+
+                // TODO: handle elector account
+            }
 
             if let Some(config) = mc_extra.config() {
                 self.metrics.update_config_metrics(seqno, config)?;
@@ -139,9 +186,9 @@ impl ton_indexer::Subscriber for TonSubscriber {
         _: BriefBlockMeta,
         block: &BlockStuff,
         _: Option<&BlockProofStuff>,
-        _: &ShardStateStuff,
+        state: &ShardStateStuff,
     ) -> Result<()> {
-        if let Err(e) = self.update_metrics(block) {
+        if let Err(e) = self.update_metrics(block, state) {
             log::error!("Failed to update metrics: {:?}", e);
         }
         Ok(())
@@ -153,5 +200,8 @@ enum TonSubscriberError {
     #[error("Given block is not a master block")]
     NotAMasterChainBlock,
 }
+
+const ELECTOR_UPDATE_THRESHOLD: u128 = 100_000 * ONE_TON;
+const ONE_TON: u128 = 1_000_000_000;
 
 type ShardDescrTreeRef = ton_block::InRefValue<ton_block::BinTree<ton_block::ShardDescr>>;
