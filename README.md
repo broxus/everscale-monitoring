@@ -3,9 +3,12 @@
 ### How to run
 
 ```bash
-./scrips/setup.sh
+./scripts/setup.sh
+```
 
-# After 20~30 minutes:
+After 20~30 minutes:
+
+```bash
 curl http://127.0.0.1:10000/metrics
 ```
 
