@@ -184,17 +184,19 @@ impl std::fmt::Display for MetricsState {
             .label(COLLECTION, "transactions")
             .value(self.transactions_total.load(Ordering::Acquire))?;
 
-        f.begin_metric("frmon_mc_shards")
-            .value(self.shard_count.load(Ordering::Acquire))?;
+        let mc_utime = self.mc_utime.load(Ordering::Acquire);
+        if mc_utime > 0 {
+            f.begin_metric("frmon_mc_shards")
+                .value(self.shard_count.load(Ordering::Acquire))?;
 
-        f.begin_metric("frmon_mc_seqno")
-            .value(self.mc_seq_no.load(Ordering::Acquire))?;
+            f.begin_metric("frmon_mc_seqno")
+                .value(self.mc_seq_no.load(Ordering::Acquire))?;
 
-        f.begin_metric("frmon_mc_utime")
-            .value(self.mc_utime.load(Ordering::Acquire))?;
+            f.begin_metric("frmon_mc_utime").value(mc_utime)?;
 
-        f.begin_metric("frmon_mc_avgtrc")
-            .value(self.mc_avg_transaction_count.reset().unwrap_or_default())?;
+            f.begin_metric("frmon_mc_avgtrc")
+                .value(self.mc_avg_transaction_count.reset().unwrap_or_default())?;
+        }
 
         for shard in self.shards.read().values() {
             if let Some((seqno, utime)) = shard.load_seqno_and_utime() {
@@ -373,11 +375,10 @@ impl ShardState {
     fn load_seqno_and_utime(&self) -> Option<(u32, u32)> {
         let value = self
             .seqno_and_utime
-            .fetch_and(Self::DIRTY_MASK, Ordering::AcqRel)
-            & Self::DIRTY_MASK;
+            .fetch_and(Self::DIRTY_MASK, Ordering::AcqRel);
 
         if value & Self::DIRTY_FLAG != 0 {
-            Some(((value >> 32) as u32, value as u32))
+            Some(((value >> 32) as u32, (value & Self::DIRTY_MASK) as u32))
         } else {
             None
         }
