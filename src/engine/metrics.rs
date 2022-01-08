@@ -373,7 +373,9 @@ impl ShardState {
     fn load_seqno_and_utime(&self) -> Option<(u32, u32)> {
         let value = self
             .seqno_and_utime
-            .fetch_and(Self::DIRTY_MASK, Ordering::AcqRel);
+            .fetch_and(Self::DIRTY_MASK, Ordering::AcqRel)
+            & Self::DIRTY_MASK;
+
         if value & Self::DIRTY_FLAG != 0 {
             Some(((value >> 32) as u32, value as u32))
         } else {
