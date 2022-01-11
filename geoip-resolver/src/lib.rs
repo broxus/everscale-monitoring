@@ -99,11 +99,7 @@ async fn scan_overlay(
 
         let node_count = node_ips.len();
 
-        for (ip, node) in result {
-            let peer_id = AdnlNodeIdFull::try_from(&node.id)
-                .context("Failed to get peer full id")?
-                .compute_short_id()
-                .context("Failed to compute peer short id")?;
+        for (ip, _) in result {
             node_ips.insert(ip);
         }
 

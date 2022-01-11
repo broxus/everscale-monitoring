@@ -1,9 +1,10 @@
-use std::io::{BufRead, Read};
+use std::io::Read;
 use std::net::SocketAddrV4;
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use indicatif::ProgressBar;
+use pomfrit::formatter::DisplayPrometheusExt;
 use serde::{Deserialize, Serialize};
 
 pub struct GeoDataImporter {
@@ -141,21 +142,25 @@ pub struct Resolver<'a> {
 
 impl Resolver<'_> {
     pub fn find(&mut self, address: SocketAddrV4) -> Result<AddressInfo> {
-        let address = u32::from(*address.ip()).to_be_bytes();
+        let ip = u32::from(*address.ip()).to_be_bytes();
 
-        self.location_iter.seek_for_prev(&address);
+        self.location_iter.seek_for_prev(&ip);
         let location = match self.location_iter.value() {
             Some(data) => Some(bincode::deserialize(data)?),
             None => None,
         };
 
-        self.asn_iter.seek_for_prev(&address);
+        self.asn_iter.seek_for_prev(&ip);
         let other = match self.asn_iter.value() {
             Some(data) => Some(bincode::deserialize(data)?),
             None => None,
         };
 
-        Ok(AddressInfo { location, other })
+        Ok(AddressInfo {
+            address,
+            location,
+            other,
+        })
     }
 }
 
@@ -177,27 +182,36 @@ impl GeoDb {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AddressInfo {
+    pub address: SocketAddrV4,
     pub location: Option<StoredLocationRecord>,
     pub other: Option<StoredAsnRecord>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StoredAsnRecord {
-    pub mask: Option<String>,
-    pub asn: Option<String>,
-    pub name: Option<String>,
-}
+impl std::fmt::Display for AddressInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut m = f
+            .begin_metric("adnl_peer")
+            .label("ip", self.address.ip())
+            .label("port", self.address.port());
 
-#[derive(Debug, Deserialize)]
-struct AsnRecord {
-    ip_from: u32,
-    ip_to: u32,
-    #[serde(deserialize_with = "deserialize_optional")]
-    mask: Option<String>,
-    #[serde(deserialize_with = "deserialize_optional")]
-    asn: Option<String>,
-    #[serde(deserialize_with = "deserialize_optional")]
-    name: Option<String>,
+        if let Some(location) = &self.location {
+            m = m
+                .label("latitude", location.latitude)
+                .label("longitude", location.longitude)
+                .label_opt("country_code", &location.country_code)
+                .label_opt("country_name", &location.country_name)
+                .label_opt("region_name", &location.region_name)
+                .label_opt("city_name", &location.city_name);
+        }
+
+        if let Some(other) = &self.other {
+            m = m
+                .label_opt("asn", &other.asn)
+                .label_opt("asn_name", &other.name);
+        }
+
+        m.empty()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -213,7 +227,7 @@ pub struct StoredLocationRecord {
 #[derive(Debug, Deserialize)]
 struct LocationRecord {
     ip_from: u32,
-    ip_to: u32,
+    _ip_to: u32,
     #[serde(deserialize_with = "deserialize_optional")]
     country_code: Option<String>,
     #[serde(deserialize_with = "deserialize_optional")]
@@ -224,6 +238,25 @@ struct LocationRecord {
     city_name: Option<String>,
     latitude: f64,
     longitude: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StoredAsnRecord {
+    pub mask: Option<String>,
+    pub asn: Option<String>,
+    pub name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AsnRecord {
+    ip_from: u32,
+    _ip_to: u32,
+    #[serde(deserialize_with = "deserialize_optional")]
+    mask: Option<String>,
+    #[serde(deserialize_with = "deserialize_optional")]
+    asn: Option<String>,
+    #[serde(deserialize_with = "deserialize_optional")]
+    name: Option<String>,
 }
 
 fn deserialize_optional<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>

@@ -751,6 +751,7 @@ dependencies = [
  "global-config",
  "indicatif",
  "log",
+ "pomfrit",
  "public-ip",
  "rand",
  "rocksdb",
@@ -782,7 +783,7 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "global-config"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#5f90d954e132b3945f6cfd7723a2943f8bf328d3"
+source = "git+https://github.com/broxus/ton-indexer.git#f32102ee2f78b043d53c06b73ef67ec445601b2f"
 dependencies = [
  "anyhow",
  "base64",
@@ -1452,9 +1453,9 @@ checksum = "07e2192780e9f8e282049ff9bffcaa28171e1cb0844f49ed5374e518ae6024ec"
 
 [[package]]
 name = "pomfrit"
-version = "0.1.1"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c542d6b81ec253dce14c9011e22f4fc16b89c4869448fee99100c63a536603cb"
+checksum = "53958db287f1882a41bf75952ce10fd2d68f5c19eb3588d0b6bb347d91da1eb0"
 dependencies = [
  "anyhow",
  "futures",
@@ -1989,7 +1990,7 @@ dependencies = [
 [[package]]
 name = "ton-indexer"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#5f90d954e132b3945f6cfd7723a2943f8bf328d3"
+source = "git+https://github.com/broxus/ton-indexer.git#f32102ee2f78b043d53c06b73ef67ec445601b2f"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2032,7 +2033,7 @@ dependencies = [
 [[package]]
 name = "ton-indexer-alloc"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#5f90d954e132b3945f6cfd7723a2943f8bf328d3"
+source = "git+https://github.com/broxus/ton-indexer.git#f32102ee2f78b043d53c06b73ef67ec445601b2f"
 dependencies = [
  "errno",
  "log",

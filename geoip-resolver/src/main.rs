@@ -78,7 +78,7 @@ impl CmdResolve {
         db.with_cfs(|mut resolver| {
             for node in nodes {
                 let info = resolver.find(node.into())?;
-                println!("INFO: {:?}", info);
+                print!("{}", info);
             }
 
             Ok(())
