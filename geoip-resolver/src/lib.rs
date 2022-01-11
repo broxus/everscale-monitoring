@@ -4,10 +4,14 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use futures::StreamExt;
 use global_config::*;
-use tiny_adnl::utils::{AdnlAddressUdp, AdnlNodeIdFull, AdnlNodeIdShort, FxHashMap};
+use tiny_adnl::utils::*;
 use tiny_adnl::*;
 
-pub async fn search_nodes(address: SocketAddrV4, global_config: GlobalConfig) -> Result<NodesMap> {
+pub use geo_data::*;
+
+mod geo_data;
+
+pub async fn search_nodes(address: SocketAddrV4, global_config: GlobalConfig) -> Result<NodeIps> {
     log::info!("Using public ip: {}", address);
 
     let adnl = AdnlNode::new(
@@ -65,7 +69,7 @@ pub async fn search_nodes(address: SocketAddrV4, global_config: GlobalConfig) ->
     log::info!("Found {} DHT nodes", dht_node_count);
 
     // Search overlay peers
-    let mut nodes = FxHashMap::default();
+    let mut nodes = NodeIps::default();
     scan_overlay(&dht, &overlay, -1, &mut nodes)
         .await
         .context("Failed to scan overlay -1")?;
@@ -81,7 +85,7 @@ async fn scan_overlay(
     dht: &Arc<DhtNode>,
     overlay: &Arc<OverlayNode>,
     workchain: i32,
-    nodes: &mut NodesMap,
+    node_ips: &mut NodeIps,
 ) -> Result<()> {
     let overlay_id = overlay.compute_overlay_short_id(workchain, 0x8000000000000000u64 as i64)?;
     log::info!("Scanning overlay {}", overlay_id);
@@ -93,19 +97,19 @@ async fn scan_overlay(
             .await
             .context("Failed to find overlay nodes")?;
 
-        let node_count = nodes.len();
+        let node_count = node_ips.len();
 
         for (ip, node) in result {
             let peer_id = AdnlNodeIdFull::try_from(&node.id)
                 .context("Failed to get peer full id")?
                 .compute_short_id()
                 .context("Failed to compute peer short id")?;
-            nodes.insert(peer_id, ip);
+            node_ips.insert(ip);
         }
 
         log::info!(
             "Found {} overlay nodes in overlay {}",
-            nodes.len() - node_count,
+            node_ips.len() - node_count,
             overlay_id
         );
 
@@ -121,4 +125,4 @@ fn generate_key() -> ed25519_dalek::SecretKey {
     ed25519_dalek::SecretKey::generate(&mut rand::thread_rng())
 }
 
-type NodesMap = FxHashMap<AdnlNodeIdShort, AdnlAddressUdp>;
+type NodeIps = FxHashSet<AdnlAddressUdp>;
