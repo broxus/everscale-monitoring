@@ -1,4 +1,5 @@
 use std::io::{BufRead, Read};
+use std::net::SocketAddrV4;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -116,11 +117,45 @@ impl GeoDataReader {
 
     pub fn with_cfs<F>(&self, f: F) -> Result<()>
     where
-        F: FnOnce(&rocksdb::ColumnFamily, &rocksdb::ColumnFamily) -> Result<()>,
+        for<'a> F: FnOnce(Resolver<'a>) -> Result<()>,
     {
-        let asn_cf = self.db.get_cf(CF_ASN)?;
-        let location_cf = self.db.get_cf(CF_LOCATIONS)?;
-        f(asn_cf, location_cf)
+        let snapshot = self.db.0.snapshot();
+        let location_iter = snapshot.raw_iterator_cf_opt(
+            self.db.get_cf(CF_LOCATIONS)?,
+            rocksdb::ReadOptions::default(),
+        );
+        let asn_iter =
+            snapshot.raw_iterator_cf_opt(self.db.get_cf(CF_ASN)?, rocksdb::ReadOptions::default());
+
+        f(Resolver {
+            location_iter,
+            asn_iter,
+        })
+    }
+}
+
+pub struct Resolver<'a> {
+    location_iter: rocksdb::DBRawIterator<'a>,
+    asn_iter: rocksdb::DBRawIterator<'a>,
+}
+
+impl Resolver<'_> {
+    pub fn find(&mut self, address: SocketAddrV4) -> Result<AddressInfo> {
+        let address = u32::from(*address.ip()).to_be_bytes();
+
+        self.location_iter.seek_for_prev(&address);
+        let location = match self.location_iter.value() {
+            Some(data) => Some(bincode::deserialize(data)?),
+            None => None,
+        };
+
+        self.asn_iter.seek_for_prev(&address);
+        let other = match self.asn_iter.value() {
+            Some(data) => Some(bincode::deserialize(data)?),
+            None => None,
+        };
+
+        Ok(AddressInfo { location, other })
     }
 }
 
@@ -140,11 +175,17 @@ impl GeoDb {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct StoredAsnRecord {
-    mask: Option<String>,
-    asn: Option<String>,
-    name: Option<String>,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AddressInfo {
+    pub location: Option<StoredLocationRecord>,
+    pub other: Option<StoredAsnRecord>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StoredAsnRecord {
+    pub mask: Option<String>,
+    pub asn: Option<String>,
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -159,14 +200,14 @@ struct AsnRecord {
     name: Option<String>,
 }
 
-#[derive(Serialize, Deserialize)]
-struct StoredLocationRecord {
-    country_code: Option<String>,
-    country_name: Option<String>,
-    region_name: Option<String>,
-    city_name: Option<String>,
-    latitude: f64,
-    longitude: f64,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StoredLocationRecord {
+    pub country_code: Option<String>,
+    pub country_name: Option<String>,
+    pub region_name: Option<String>,
+    pub city_name: Option<String>,
+    pub latitude: f64,
+    pub longitude: f64,
 }
 
 #[derive(Debug, Deserialize)]

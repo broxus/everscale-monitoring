@@ -51,10 +51,16 @@ struct CmdResolve {
     /// path to global config file
     #[argh(option, short = 'g')]
     global_config: String,
+
+    /// path to the resolver DB
+    #[argh(option)]
+    db: PathBuf,
 }
 
 impl CmdResolve {
     async fn execute(self) -> Result<()> {
+        let db = GeoDataReader::new(self.db)?;
+
         let global_config =
             GlobalConfig::load(self.global_config).context("Failed to load global config")?;
 
@@ -69,7 +75,14 @@ impl CmdResolve {
             .await
             .context("Failed to search nodes")?;
 
-        // TODO
+        db.with_cfs(|mut resolver| {
+            for node in nodes {
+                let info = resolver.find(node.into())?;
+                println!("INFO: {:?}", info);
+            }
+
+            Ok(())
+        })?;
 
         Ok(())
     }
