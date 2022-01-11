@@ -10,20 +10,20 @@ async fn main() -> Result<()> {
     }
 }
 
-#[derive(Debug, PartialEq, argh::FromArgs)]
+#[derive(argh::FromArgs)]
 #[argh(description = "")]
 struct App {
     #[argh(subcommand)]
     command: Subcommand,
 }
 
-#[derive(Debug, PartialEq, argh::FromArgs)]
+#[derive(argh::FromArgs)]
 #[argh(subcommand)]
 enum Subcommand {
     Run(CmdRun),
 }
 
-#[derive(Debug, PartialEq, argh::FromArgs)]
+#[derive(argh::FromArgs)]
 /// Starts service
 #[argh(subcommand, name = "run")]
 struct CmdRun {
@@ -41,7 +41,7 @@ impl CmdRun {
         let config: AppConfig = read_config(&self.config)?;
         let _logger = init_logger(&config.logger_settings).context("Failed to init logger")?;
 
-        let global_config = ton_indexer::GlobalConfig::from_file(&self.global_config)
+        let global_config = ton_indexer::GlobalConfig::load(&self.global_config)
             .context("Failed to open global config")?;
 
         let engine = Engine::new(config, global_config)
@@ -53,7 +53,7 @@ impl CmdRun {
     }
 }
 
-fn read_config<P, T>(path: P) -> Result<T>
+pub fn read_config<P, T>(path: P) -> Result<T>
 where
     P: AsRef<std::path::Path>,
     for<'de> T: serde::Deserialize<'de>,
@@ -79,12 +79,12 @@ where
     config.try_into().context("Failed to parse config")
 }
 
-fn init_logger(initial_value: &serde_yaml::Value) -> Result<log4rs::Handle> {
+pub fn init_logger(initial_value: &serde_yaml::Value) -> Result<log4rs::Handle> {
     let handle = log4rs::config::init_config(parse_logger_config(initial_value.clone())?)?;
     Ok(handle)
 }
 
-fn parse_logger_config(value: serde_yaml::Value) -> Result<log4rs::Config> {
+pub fn parse_logger_config(value: serde_yaml::Value) -> Result<log4rs::Config> {
     let config = serde_yaml::from_value::<log4rs::config::RawConfig>(value)?;
 
     let (appenders, errors) = config.appenders_lossy(&log4rs::config::Deserializers::default());

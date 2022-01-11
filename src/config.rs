@@ -1,5 +1,5 @@
 use std::net::{Ipv4Addr, SocketAddrV4};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use rand::Rng;
@@ -9,15 +9,12 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize)]
 pub struct AppConfig {
     /// TON node settings
-    #[serde(default)]
     pub node_settings: NodeConfig,
 
-    #[serde(default)]
     pub metrics_settings: pomfrit::Config,
 
     /// log4rs settings.
     /// See [docs](https://docs.rs/log4rs/1.0.0/log4rs/) for more details
-    #[serde(default = "default_logger_settings")]
     pub logger_settings: serde_yaml::Value,
 }
 
@@ -113,45 +110,6 @@ impl Default for NodeConfig {
             blocks_gc_enabled: true,
         }
     }
-}
-
-impl ConfigExt for ton_indexer::GlobalConfig {
-    fn from_file<P>(path: &P) -> Result<Self>
-    where
-        P: AsRef<Path>,
-    {
-        let file = std::fs::File::open(path)?;
-        let reader = std::io::BufReader::new(file);
-        let config = serde_json::from_reader(reader)?;
-        Ok(config)
-    }
-}
-
-pub trait ConfigExt: Sized {
-    fn from_file<P>(path: &P) -> Result<Self>
-    where
-        P: AsRef<Path>;
-}
-
-fn default_logger_settings() -> serde_yaml::Value {
-    const DEFAULT_LOG4RS_SETTINGS: &str = r##"
-    appenders:
-      stdout:
-        kind: console
-        encoder:
-          pattern: "{d(%Y-%m-%d %H:%M:%S %Z)(utc)} - {h({l})} {M} = {m} {n}"
-    root:
-      level: error
-      appenders:
-        - stdout
-    loggers:
-      everscale_monitoring:
-        level: info
-        appenders:
-          - stdout
-        additive: false
-    "##;
-    serde_yaml::from_str(DEFAULT_LOG4RS_SETTINGS).unwrap()
 }
 
 #[derive(thiserror::Error, Debug)]
