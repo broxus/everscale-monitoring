@@ -45,3 +45,24 @@ logger_settings:
         - stdout
       additive: false
 ```
+
+### GeoIP
+
+#### Prepare DB
+1. Download `IP2LOCATION-LITE-ASN.CSV` and `IP2LOCATION-LITE-DB11.CSV`
+
+2. Import databases:
+   ```bash
+   geoip-resolver import \
+     --db /var/db/geodb \
+     --asn IP2LOCATION-LITE-ASN.CSV \
+     --locations IP2LOCATION-LITE-DB11.CSV
+   ```
+  
+3. Search nodes:
+   ```bash
+   geoip-resolver resolve \
+     --db /var/db/geodb \
+     -g /etc/everscale-monitoring/ton-global.config.json \
+     > nodes.txt
+   ```

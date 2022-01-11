@@ -28,6 +28,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 service_path="/etc/systemd/system/everscale-monitoring.service"
+geoip_service_path="/etc/systemd/system/geoip.service"
 config_path="/etc/everscale-monitoring/config.yaml"
 
 echo 'INFO: Running native installation'
@@ -44,6 +45,7 @@ echo 'INFO: building everscale-monitoring'
 cd "$REPO_DIR"
 RUSTFLAGS="-C target_cpu=native" cargo build --release
 sudo cp "$REPO_DIR/target/release/everscale-monitoring" /usr/local/bin/everscale-monitoring
+sudo cp "$REPO_DIR/target/release/geoip-resolver" /usr/local/bin/geoip-resolver
 
 echo 'INFO: creating systemd service'
 if [[ -f "$service_path" ]]; then
@@ -52,10 +54,16 @@ else
   sudo cp "$REPO_DIR/contrib/everscale-monitoring.native.service" "$service_path"
 fi
 
+if [[ -f "$geoip_service_path" ]]; then
+  echo "WARN: $geoip_service_path already exists"
+else
+  sudo cp "$REPO_DIR/contrib/geoip.native.service" "$geoip_service_path"
+fi
 
 echo "INFO: preparing environment"
 sudo mkdir -p /etc/everscale-monitoring
 sudo mkdir -p /var/db/everscale-monitoring
+sudo mkdir -p /var/db/geoip
 if [[ -f "$config_path" ]]; then
   echo "WARN: $config_path already exists"
 else
