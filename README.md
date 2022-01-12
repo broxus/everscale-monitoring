@@ -64,5 +64,5 @@ logger_settings:
    geoip-resolver resolve \
      --db /var/db/geodb \
      -g /etc/everscale-monitoring/ton-global.config.json \
-     > nodes.txt
+     nodes.txt
    ```
