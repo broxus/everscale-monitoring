@@ -43,10 +43,11 @@ source "$HOME/.cargo/env"
 
 echo 'INFO: building everscale-monitoring'
 cd "$REPO_DIR"
-
 RUSTFLAGS="-C target_cpu=native" cargo build --release
 sudo cp "$REPO_DIR/target/release/everscale-monitoring" /usr/local/bin/everscale-monitoring
 
+echo 'INFO: building geoip-resolver'
+cd "$REPO_DIR"
 RUSTFLAGS="-C target_cpu=native" cargo build --release -p geoip-resolver
 sudo cp "$REPO_DIR/target/release/geoip-resolver" /usr/local/bin/geoip-resolver
 
@@ -82,5 +83,7 @@ sudo systemctl restart systemd-timesyncd.service
 echo 'INFO: done'
 echo ''
 echo 'INFO: Systemd service: everscale-monitoring'
+echo '      Systemd geoip service: geoip-service'
 echo '      Keys and configs: /etc/everscale-monitoring'
 echo '      Node DB and stuff: /var/db/everscale-monitoring'
+echo '      Geoip resolver DB: /var/db/geoip'

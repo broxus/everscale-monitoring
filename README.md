@@ -49,7 +49,7 @@ logger_settings:
 ### GeoIP
 
 #### Prepare DB
-1. Download `IP2LOCATION-LITE-ASN.CSV` and `IP2LOCATION-LITE-DB11.CSV`
+1. Download [`IP2LOCATION-LITE-ASN.CSV`](https://lite.ip2location.com/database-asn) and [`IP2LOCATION-LITE-DB11.CSV`](https://lite.ip2location.com/database/db11-ip-country-region-city-latitude-longitude-zipcode-timezone)
 
 2. Import databases:
    ```bash
@@ -61,8 +61,7 @@ logger_settings:
   
 3. Search nodes:
    ```bash
-   geoip-resolver resolve \
+   geoip-resolver resolve nodes.txt \
      --db /var/db/geodb \
-     -g /etc/everscale-monitoring/ton-global.config.json \
-     nodes.txt
+     -g /etc/everscale-monitoring/ton-global.config.json
    ```

@@ -42,6 +42,9 @@ done
 echo "INFO: stopping everscale-monitoring service"
 sudo systemctl stop everscale-monitoring
 
+echo "INFO: stopping geoip service"
+sudo systemctl stop geoip
+
 if [[ "$force" == "true" ]]; then
   echo "INFO: removing everscale-monitoring db"
   sudo rm -rf /var/db/everscale-monitoring
@@ -56,12 +59,18 @@ cd "$REPO_DIR"
 RUSTFLAGS="-C target_cpu=native" cargo build --release
 sudo cp "$REPO_DIR/target/release/everscale-monitoring" /usr/local/bin/everscale-monitoring
 
+echo 'INFO: building geoip-resolver'
+cd "$REPO_DIR"
+RUSTFLAGS="-C target_cpu=native" cargo build --release -p geoip-resolver
+sudo cp "$REPO_DIR/target/release/geoip-resolver" /usr/local/bin/geoip-resolver
+
 
 sudo wget -O /etc/everscale-monitoring/ton-global.config.json \
   https://raw.githubusercontent.com/tonlabs/main.ton.dev/master/configs/ton-global.config.json
 
 echo "INFO: preparing environment"
 sudo mkdir -p /var/db/everscale-monitoring
+sudo mkdir -p /var/db/geoip
 
 if [[ "$restart_timesyncd" == "true" ]]; then
   echo 'INFO: restarting timesyncd'
@@ -71,9 +80,13 @@ fi
 echo 'INFO: restarting everscale-monitoring service'
 sudo systemctl restart everscale-monitoring
 
+echo 'INFO: restarting geoip service'
+sudo systemctl restart geoip
+
 echo 'INFO: done'
 echo ''
 echo 'INFO: Systemd service: everscale-monitoring'
+echo '      Systemd geoip service: geoip-service'
 echo '      Keys and configs: /etc/everscale-monitoring'
 echo '      Node DB and stuff: /var/db/everscale-monitoring'
-echo ''
+echo '      Geoip resolver DB: /var/db/geoip'
