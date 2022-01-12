@@ -6,6 +6,7 @@ use anyhow::{Context, Result};
 use indicatif::ProgressBar;
 use pomfrit::formatter::DisplayPrometheusExt;
 use serde::{Deserialize, Serialize};
+use tiny_adnl::utils::FxHashMap;
 
 pub struct GeoDataImporter {
     db: GeoDb,
@@ -129,6 +130,7 @@ impl GeoDataReader {
             snapshot.raw_iterator_cf_opt(self.db.get_cf(CF_ASN)?, rocksdb::ReadOptions::default());
 
         f(Resolver {
+            cache: LocationCache::default(),
             location_iter,
             asn_iter,
         })
@@ -136,6 +138,7 @@ impl GeoDataReader {
 }
 
 pub struct Resolver<'a> {
+    cache: LocationCache,
     location_iter: rocksdb::DBRawIterator<'a>,
     asn_iter: rocksdb::DBRawIterator<'a>,
 }
@@ -145,21 +148,27 @@ impl Resolver<'_> {
         let ip = u32::from(*address.ip()).to_be_bytes();
 
         self.location_iter.seek_for_prev(&ip);
-        let location = match self.location_iter.value() {
+        let location: Option<StoredLocationRecord> = match self.location_iter.value() {
             Some(data) => Some(bincode::deserialize(data)?),
             None => None,
         };
 
         self.asn_iter.seek_for_prev(&ip);
-        let other = match self.asn_iter.value() {
+        let other: Option<StoredAsnRecord> = match self.asn_iter.value() {
             Some(data) => Some(bincode::deserialize(data)?),
             None => None,
         };
+
+        let adjusted_location = location.as_ref().map(|location| {
+            self.cache
+                .adjust((location.latitude, location.longitude), 0.0001)
+        });
 
         Ok(AddressInfo {
             address,
             location,
             other,
+            adjusted_location,
         })
     }
 }
@@ -185,6 +194,7 @@ pub struct AddressInfo {
     pub address: SocketAddrV4,
     pub location: Option<StoredLocationRecord>,
     pub other: Option<StoredAsnRecord>,
+    pub adjusted_location: Option<(f64, f64)>,
 }
 
 impl std::fmt::Display for AddressInfo {
@@ -202,6 +212,12 @@ impl std::fmt::Display for AddressInfo {
                 .label_opt("country_name", &location.country_name)
                 .label_opt("region_name", &location.region_name)
                 .label_opt("city_name", &location.city_name);
+        }
+
+        if let Some((latitude, longitude)) = &self.adjusted_location {
+            m = m
+                .label("adjusted_latitude", latitude)
+                .label("adjusted_longitude", longitude);
         }
 
         if let Some(other) = &self.other {
@@ -259,6 +275,51 @@ struct AsnRecord {
     name: Option<String>,
 }
 
+#[derive(Default)]
+struct LocationCache(FxHashMap<(u64, u64), usize>);
+
+impl LocationCache {
+    fn adjust(&mut self, (latitude, longitude): (f64, f64), step: f64) -> (f64, f64) {
+        let counter = self
+            .0
+            .entry((convert_f64(&latitude), convert_f64(&longitude)))
+            .or_default();
+        *counter += 1;
+
+        let (offset_lat, offset_lng) = spiral(*counter as i64);
+
+        (
+            latitude + (offset_lat as f64) * step,
+            longitude + (offset_lng as f64) * step,
+        )
+    }
+}
+
+fn spiral(n: i64) -> (i64, i64) {
+    let k = (((n as f64).sqrt() - 1.0) / 2.0).ceil() as i64;
+    let mut t = 2 * k + 1;
+    let mut m = t * t;
+    t -= 1;
+
+    if n >= m - t {
+        return (k - (m - n), -k);
+    } else {
+        m -= t;
+    }
+
+    if n >= m - t {
+        return (-k, -k + (m - n));
+    } else {
+        m -= t;
+    }
+
+    if n >= m - t {
+        (-k + (m - n), k)
+    } else {
+        (k, k - (m - n - t))
+    }
+}
+
 fn deserialize_optional<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
 where
     D: serde::de::Deserializer<'de>,
@@ -286,7 +347,54 @@ fn count_lines<P: AsRef<Path>>(path: P) -> Result<u64> {
     }
 }
 
+fn convert_f64(f: &f64) -> u64 {
+    const SIGN_MASK: u64 = 0x8000000000000000u64;
+    const EXP_MASK: u64 = 0x7ff0000000000000u64;
+    const MAN_MASK: u64 = 0x000fffffffffffffu64;
+
+    const CANONICAL_NAN_BITS: u64 = 0x7ff8000000000000u64;
+    const CANONICAL_ZERO_BITS: u64 = 0x0u64;
+
+    if f.is_nan() {
+        return CANONICAL_NAN_BITS;
+    }
+
+    let bits = f.to_bits();
+
+    let sign = if bits >> 63 == 0 { 1i8 } else { -1 };
+    let mut exp = ((bits >> 52) & 0x7ff) as i16;
+    let man = if exp == 0 {
+        (bits & 0xfffffffffffff) << 1
+    } else {
+        (bits & 0xfffffffffffff) | 0x10000000000000
+    };
+
+    if man == 0 {
+        return CANONICAL_ZERO_BITS;
+    }
+
+    // Exponent bias + mantissa shift
+    exp -= 1023 + 52;
+
+    let exp_u64 = exp as u64;
+    let sign_u64 = if sign > 0 { 1u64 } else { 0u64 };
+    (man & MAN_MASK) | ((exp_u64 << 52) & EXP_MASK) | ((sign_u64 << 63) & SIGN_MASK)
+}
+
 const CFS: &[&str] = &[CF_ASN, CF_LOCATIONS];
 
 const CF_ASN: &str = "asn";
 const CF_LOCATIONS: &str = "locations";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_spiral() {
+        for i in 0..100 {
+            let (x, y) = spiral(i);
+            println!("n={}: {} _ {}", i, x, y);
+        }
+    }
+}
