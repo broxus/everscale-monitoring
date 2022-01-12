@@ -17,7 +17,6 @@ public-ip = "0.2"
 rand = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.8"
-tempfile = "3.3"
 tikv-jemalloc-sys = { version = "0.4", features = ["unprefixed_malloc_on_supported_platforms", "background_threads"] }
 tikv-jemallocator = "0.4"
 tokio = { version = '1', features = ["rt-multi-thread", "sync", "macros", "parking_lot"] }

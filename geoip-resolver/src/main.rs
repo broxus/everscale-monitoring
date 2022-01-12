@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::net::{Ipv4Addr, SocketAddrV4};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
@@ -64,14 +65,11 @@ struct CmdResolve {
 
 impl CmdResolve {
     async fn execute(self) -> Result<()> {
-        let output = std::fs::canonicalize(self.output)?;
-        let output_dir = match output.parent() {
-            Some(path) => path,
-            None => anyhow::bail!("Output directory is invalid"),
-        };
-        if !output_dir.is_dir() {
-            anyhow::bail!("Output directory doesn't exist")
-        }
+        let mut temp_extension = self.output.extension().unwrap_or_default().to_os_string();
+        temp_extension.push(std::ffi::OsString::from("temp"));
+
+        let mut temp_file_path = self.output.clone();
+        temp_file_path.set_extension(temp_extension);
 
         let db = GeoDataReader::new(self.db)?;
 
@@ -89,7 +87,13 @@ impl CmdResolve {
             .await
             .context("Failed to search nodes")?;
 
-        let mut temp_file = tempfile::NamedTempFile::new_in(output_dir)?;
+        let mut temp_file = std::fs::OpenOptions::new()
+            .write(true)
+            .truncate(true)
+            .create(true)
+            .mode(0o644)
+            .open(&temp_file_path)?;
+
         db.with_cfs(|mut resolver| {
             for node in nodes {
                 let info = resolver.find(node.into())?;
@@ -98,8 +102,8 @@ impl CmdResolve {
             Ok(())
         })?;
 
-        let temp_path = temp_file.into_temp_path();
-        std::fs::rename(temp_path, output)?;
+        drop(temp_file);
+        std::fs::rename(temp_file_path, self.output)?;
 
         Ok(())
     }
