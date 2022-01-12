@@ -8,10 +8,11 @@ Type=simple
 Restart=always
 RestartSec=120
 WorkingDirectory=/etc/everscale-monitoring
-ExecStart=/usr/local/bin/geoip resolve \
-    --port 30001
-    --db /var/db/geoip
-    --global-config /etc/everscale-monitoring/ton-global.config.json
+ExecStart=/usr/local/bin/geoip-resolver resolve \
+    --port 30001 \
+    --db /var/db/geoip \
+    --global-config /etc/everscale-monitoring/ton-global.config.json \
+    /var/www/nodes.txt
 
 [Install]
 WantedBy=multi-user.target

@@ -43,8 +43,11 @@ source "$HOME/.cargo/env"
 
 echo 'INFO: building everscale-monitoring'
 cd "$REPO_DIR"
+
 RUSTFLAGS="-C target_cpu=native" cargo build --release
 sudo cp "$REPO_DIR/target/release/everscale-monitoring" /usr/local/bin/everscale-monitoring
+
+RUSTFLAGS="-C target_cpu=native" cargo build --release -p geoip-resolver
 sudo cp "$REPO_DIR/target/release/geoip-resolver" /usr/local/bin/geoip-resolver
 
 echo 'INFO: creating systemd service'
