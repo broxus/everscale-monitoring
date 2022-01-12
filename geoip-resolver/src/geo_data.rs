@@ -210,7 +210,7 @@ impl std::fmt::Display for AddressInfo {
                 .label_opt("asn_name", &other.name);
         }
 
-        m.value(0)
+        m.value(1)
     }
 }
 
