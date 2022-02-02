@@ -32,10 +32,12 @@ pub async fn search_nodes(address: SocketAddrV4, global_config: GlobalConfig) ->
     )
     .context("Failed to create DHT node")?;
 
-    let overlay = OverlayNode::new(adnl.clone(), global_config.zero_state.file_hash.into(), 1)
-        .context("Failed to create overlay node")?;
+    let file_hash = global_config.init_block.as_ref().unwrap().file_hash;
 
-    adnl.start(vec![dht.clone(), overlay.clone()])
+    let mc_overlay_id = compute_overlay_id(-1, 0, file_hash.into())?.compute_short_id()?;
+    let sc_overlay_id = compute_overlay_id(0, 0, file_hash.into())?.compute_short_id()?;
+
+    adnl.start(vec![dht.clone()])
         .await
         .context("Failed to start ADNL")?;
 
@@ -70,10 +72,10 @@ pub async fn search_nodes(address: SocketAddrV4, global_config: GlobalConfig) ->
 
     // Search overlay peers
     let mut nodes = NodeIps::default();
-    scan_overlay(&dht, &overlay, -1, &mut nodes)
+    scan_overlay(&dht, &mc_overlay_id, &mut nodes)
         .await
         .context("Failed to scan overlay -1")?;
-    scan_overlay(&dht, &overlay, 0, &mut nodes)
+    scan_overlay(&dht, &sc_overlay_id, &mut nodes)
         .await
         .context("Failed to scan overlay 0")?;
 
@@ -83,17 +85,15 @@ pub async fn search_nodes(address: SocketAddrV4, global_config: GlobalConfig) ->
 
 async fn scan_overlay(
     dht: &Arc<DhtNode>,
-    overlay: &Arc<OverlayNode>,
-    workchain: i32,
+    overlay_id: &OverlayIdShort,
     node_ips: &mut NodeIps,
 ) -> Result<()> {
-    let overlay_id = overlay.compute_overlay_short_id(workchain, 0x8000000000000000u64 as i64)?;
     log::info!("Scanning overlay {}", overlay_id);
 
     let mut iter = None;
     loop {
         let result = dht
-            .find_overlay_nodes(&overlay_id, &mut iter)
+            .find_overlay_nodes(overlay_id, &mut iter)
             .await
             .context("Failed to find overlay nodes")?;
 
