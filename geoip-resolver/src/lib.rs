@@ -32,7 +32,7 @@ pub async fn search_nodes(address: SocketAddrV4, global_config: GlobalConfig) ->
     )
     .context("Failed to create DHT node")?;
 
-    let file_hash = global_config.init_block.as_ref().unwrap().file_hash;
+    let file_hash = global_config.zero_state.file_hash;
 
     let mc_overlay_id = compute_overlay_id(-1, 0, file_hash.into())?.compute_short_id()?;
     let sc_overlay_id = compute_overlay_id(0, 0, file_hash.into())?.compute_short_id()?;
