@@ -95,9 +95,9 @@ dependencies = [
 
 [[package]]
 name = "autocfg"
-version = "1.0.1"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
+checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
 name = "base64"
@@ -161,12 +161,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "build_const"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4ae4235e6dac0694637c763029ecea1a2ec9e4e06ec2729bd21ba4d9c863eb7"
-
-[[package]]
 name = "byteorder"
 version = "1.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -177,6 +171,17 @@ name = "bytes"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4872d67bab6358e59559027aa3b9157c53d9358c51423c17554809a8858e0f8"
+
+[[package]]
+name = "bzip2-sys"
+version = "0.1.11+1.0.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "736a955f3fa7875102d57c82b8cac37ec45224a07fd32d58f9f7a186b6cd4cdc"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+]
 
 [[package]]
 name = "cc"
@@ -276,6 +281,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5827cebf4670468b8772dd191856768aedcb1b0278a04f989f7766351917b9dc"
 
 [[package]]
+name = "countme"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03746e0c6dd9b5d2d9132ffe0bede35fb5f815604fd371bb42599fd37bc8e483"
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -286,12 +297,18 @@ dependencies = [
 
 [[package]]
 name = "crc"
-version = "1.8.1"
+version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d663548de7f5cca343f1e0a48d14dcfb0e9eb4e079ec58883b7251539fa10aeb"
+checksum = "49fc9a695bca7f35f5f4c15cddc84415f66a74ea78eef08e90c5024f2b540e23"
 dependencies = [
- "build_const",
+ "crc-catalog",
 ]
+
+[[package]]
+name = "crc-catalog"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ccaeedb56da03b09f598226e25e80088cb4cd25f316e6e4df7d695f0feeb1403"
 
 [[package]]
 name = "crossbeam-channel"
@@ -585,7 +602,7 @@ dependencies = [
  "log4rs",
  "nekoton-abi",
  "once_cell",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.0",
  "pomfrit",
  "public-ip",
  "rand",
@@ -783,7 +800,7 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "global-config"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#9d19a958b36f97a5fe37478bac2cc268c0832a68"
+source = "git+https://github.com/broxus/ton-indexer.git#5686975af02a7519573dd26039ec2a510febc88e"
 dependencies = [
  "anyhow",
  "base64",
@@ -847,9 +864,9 @@ dependencies = [
 
 [[package]]
 name = "httparse"
-version = "1.5.1"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acd94fdbe1d4ff688b67b04eee2e17bd50995534a61539e45adfefb45e5e5503"
+checksum = "9100414882e15fb7feccb4897e5f0ff0ff1ca7d1a86a23208ada4d7a18e6c6c4"
 
 [[package]]
 name = "httpdate"
@@ -865,9 +882,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
-version = "0.14.16"
+version = "0.14.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b7ec3e62bdc98a2f0393a5048e4c30ef659440ea6e0e572965103e72bd836f55"
+checksum = "043f0e083e9901b6cc658a77d1eb86f4fc650bbb977a4337dd63192826aa85dd"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -877,7 +894,7 @@ dependencies = [
  "http-body",
  "httparse",
  "httpdate",
- "itoa 0.4.8",
+ "itoa 1.0.1",
  "pin-project-lite",
  "socket2",
  "tokio",
@@ -1027,14 +1044,27 @@ dependencies = [
 
 [[package]]
 name = "librocksdb-sys"
-version = "6.20.3"
-source = "git+https://github.com/Rexagon/rust-rocksdb.git#2c33f4b9d0f6aefb0d2f7781408970d1e20dc80f"
+version = "0.6.1+6.28.2"
+source = "git+https://github.com/Rexagon/rust-rocksdb.git#bc9a77cd28975a63860d3e341dd5f8eaf6bf001a"
 dependencies = [
  "bindgen",
+ "bzip2-sys",
  "cc",
  "glob",
  "libc",
+ "libz-sys",
  "tikv-jemalloc-sys",
+]
+
+[[package]]
+name = "libz-sys"
+version = "1.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de5435b8549c16d423ed0c03dbaafe57cf6c3344744f1242520d59c9d8ecec66"
+dependencies = [
+ "cc",
+ "pkg-config",
+ "vcpkg",
 ]
 
 [[package]]
@@ -1150,8 +1180,8 @@ dependencies = [
 
 [[package]]
 name = "nekoton-abi"
-version = "0.9.0"
-source = "git+https://github.com/broxus/nekoton.git#698f715b16d687574f3847a54668b5b61e8268c9"
+version = "0.10.0"
+source = "git+https://github.com/broxus/nekoton.git#e317a161bdae8ed64e6048b3db59cf8ca2974f8d"
 dependencies = [
  "anyhow",
  "base64",
@@ -1176,8 +1206,8 @@ dependencies = [
 
 [[package]]
 name = "nekoton-derive"
-version = "0.9.0"
-source = "git+https://github.com/broxus/nekoton.git#698f715b16d687574f3847a54668b5b61e8268c9"
+version = "0.10.0"
+source = "git+https://github.com/broxus/nekoton.git#e317a161bdae8ed64e6048b3db59cf8ca2974f8d"
 dependencies = [
  "either",
  "proc-macro2",
@@ -1187,8 +1217,8 @@ dependencies = [
 
 [[package]]
 name = "nekoton-utils"
-version = "0.9.0"
-source = "git+https://github.com/broxus/nekoton.git#698f715b16d687574f3847a54668b5b61e8268c9"
+version = "0.10.0"
+source = "git+https://github.com/broxus/nekoton.git#e317a161bdae8ed64e6048b3db59cf8ca2974f8d"
 dependencies = [
  "anyhow",
  "base64",
@@ -1237,9 +1267,9 @@ dependencies = [
 
 [[package]]
 name = "ntapi"
-version = "0.3.6"
+version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f6bb902e437b6d86e03cce10a7e2af662292c5dfef23b65899ea3ac9354ad44"
+checksum = "c28774a7fd2fbb4f0babd8237ce554b73af68021b5f695a3cebd6c59bac0980f"
 dependencies = [
  "winapi",
 ]
@@ -1484,6 +1514,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
+name = "pkg-config"
+version = "0.3.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58893f751c9b0412871a09abd62ecd2a00298c6c83befa223ef98c52aef40cbe"
+
+[[package]]
 name = "pom"
 version = "3.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1666,8 +1702,8 @@ dependencies = [
 
 [[package]]
 name = "rocksdb"
-version = "0.17.0"
-source = "git+https://github.com/Rexagon/rust-rocksdb.git#2c33f4b9d0f6aefb0d2f7781408970d1e20dc80f"
+version = "0.18.0"
+source = "git+https://github.com/Rexagon/rust-rocksdb.git#bc9a77cd28975a63860d3e341dd5f8eaf6bf001a"
 dependencies = [
  "libc",
  "librocksdb-sys",
@@ -1733,9 +1769,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.78"
+version = "1.0.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d23c1ba4cf0efd44be32017709280b32d1cea5c3f1275c3b6d9e8bc54f758085"
+checksum = "8e8d9fa5c3b304765ce1fd9c4c8a3de2c8db365a5b91be52f186efc675681d95"
 dependencies = [
  "itoa 1.0.1",
  "ryu",
@@ -1847,9 +1883,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.20.5"
+version = "0.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e223c65cd36b485a34c2ce6e38efa40777d31c4166d9076030c74cdcf971679f"
+checksum = "92d82ade9d6621d4ca052a00bb6ea9ed513d223cba75a84625c5e9c0698ab6f5"
 dependencies = [
  "cfg-if",
  "core-foundation-sys",
@@ -1964,7 +2000,7 @@ dependencies = [
 [[package]]
 name = "tiny-adnl"
 version = "0.1.0"
-source = "git+https://github.com/broxus/tiny-adnl.git#b0a22eb2b7398545a3a965373610a1c6606d051b"
+source = "git+https://github.com/broxus/tiny-adnl.git#7ab157d2433d66ca1a819c68e226a546c4df3984"
 dependencies = [
  "aes",
  "anyhow",
@@ -1978,7 +2014,7 @@ dependencies = [
  "hex",
  "libc",
  "log",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.0",
  "rand",
  "raptorq",
  "rustc-hash",
@@ -2049,7 +2085,7 @@ dependencies = [
 [[package]]
 name = "ton-indexer"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#9d19a958b36f97a5fe37478bac2cc268c0832a68"
+source = "git+https://github.com/broxus/ton-indexer.git#5686975af02a7519573dd26039ec2a510febc88e"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2069,7 +2105,7 @@ dependencies = [
  "lru_time_cache",
  "num-traits",
  "num_cpus",
- "parking_lot 0.11.2",
+ "parking_lot 0.12.0",
  "pin-project-lite",
  "profl",
  "rand",
@@ -2092,7 +2128,7 @@ dependencies = [
 [[package]]
 name = "ton-indexer-alloc"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#9d19a958b36f97a5fe37478bac2cc268c0832a68"
+source = "git+https://github.com/broxus/ton-indexer.git#5686975af02a7519573dd26039ec2a510febc88e"
 dependencies = [
  "errno",
  "log",
@@ -2104,7 +2140,7 @@ dependencies = [
 [[package]]
 name = "ton_abi"
 version = "2.1.0"
-source = "git+https://github.com/broxus/ton-labs-abi.git#722e61c1fabb63edb16b710e123f10f9a05e53ae"
+source = "git+https://github.com/broxus/ton-labs-abi.git#1fe6ce758ff54191f665475729f4036943709ca7"
 dependencies = [
  "anyhow",
  "base64",
@@ -2127,7 +2163,7 @@ dependencies = [
 [[package]]
 name = "ton_api"
 version = "0.0.1"
-source = "git+https://github.com/broxus/ton-labs-tl.git#9adcd3c177524876a65dae04556aca34d4bd6426"
+source = "git+https://github.com/broxus/ton-labs-tl.git#c8c5454c0c48f33e0c374b2de0d29d2762d9b7d4"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -2147,7 +2183,7 @@ dependencies = [
 [[package]]
 name = "ton_block"
 version = "1.7.14"
-source = "git+https://github.com/broxus/ton-labs-block.git#7d7a06ae90c7602a3544b720aac472307b820346"
+source = "git+https://github.com/broxus/ton-labs-block.git#61a782dafbcd07cad491abeaf005a834f92d3d10"
 dependencies = [
  "anyhow",
  "base64",
@@ -2168,11 +2204,10 @@ dependencies = [
 
 [[package]]
 name = "ton_executor"
-version = "1.15.50"
-source = "git+https://github.com/broxus/ton-labs-executor.git#595ae53b7b4e08e38790098e6df9c82efae2c5af"
+version = "1.15.54"
+source = "git+https://github.com/broxus/ton-labs-executor.git#f947e03f248fcae59dadeb068ca3374aa02bec65"
 dependencies = [
  "anyhow",
- "base64",
  "log",
  "num",
  "num-traits",
@@ -2185,7 +2220,7 @@ dependencies = [
 [[package]]
 name = "ton_tl_codegen"
 version = "0.0.1"
-source = "git+https://github.com/broxus/ton-labs-tl.git#9adcd3c177524876a65dae04556aca34d4bd6426"
+source = "git+https://github.com/broxus/ton-labs-tl.git#c8c5454c0c48f33e0c374b2de0d29d2762d9b7d4"
 dependencies = [
  "anyhow",
  "crc",
@@ -2198,10 +2233,11 @@ dependencies = [
 [[package]]
 name = "ton_types"
 version = "1.10.2"
-source = "git+https://github.com/broxus/ton-labs-types.git#30fa2aa9abbb85e5fd781fe7248af670f3caba6c"
+source = "git+https://github.com/broxus/ton-labs-types.git#b9d706bd0dc59f3fbf6357abda20e021324d71fc"
 dependencies = [
  "anyhow",
  "base64",
+ "countme",
  "crc",
  "hex",
  "lockfree",
@@ -2218,7 +2254,7 @@ dependencies = [
 [[package]]
 name = "ton_vm"
 version = "1.8.29"
-source = "git+https://github.com/broxus/ton-labs-vm.git#a484c0becf58e831d6d3a843bee77ccbc3cd8772"
+source = "git+https://github.com/broxus/ton-labs-vm.git#cc7efb7713abc5cce679c0862c6e050de4a757f3"
 dependencies = [
  "anyhow",
  "ed25519",
@@ -2404,6 +2440,12 @@ dependencies = [
  "matches",
  "percent-encoding",
 ]
+
+[[package]]
+name = "vcpkg"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
 
 [[package]]
 name = "version_check"
