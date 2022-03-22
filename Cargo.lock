@@ -801,7 +801,7 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "global-config"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#4630685fd5607c6727bc0f6ee951c64ab0f4abe5"
+source = "git+https://github.com/broxus/ton-indexer.git#702237ef1c43f24b10de274487fb172a7beea9bc"
 dependencies = [
  "anyhow",
  "base64",
@@ -1052,7 +1052,7 @@ dependencies = [
 [[package]]
 name = "librocksdb-sys"
 version = "0.6.1+6.28.2"
-source = "git+https://github.com/Rexagon/rust-rocksdb.git#bc9a77cd28975a63860d3e341dd5f8eaf6bf001a"
+source = "git+https://github.com/Rexagon/rust-rocksdb.git#ece1cd0723ab38f603445df19398b822a419d0fb"
 dependencies = [
  "bindgen",
  "bzip2-sys",
@@ -1100,9 +1100,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.14"
+version = "0.4.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
+checksum = "6389c490849ff5bc16be905ae24bc913a9c8892e19b2341dbc175e14c341c2b8"
 dependencies = [
  "cfg-if",
  "serde",
@@ -1701,7 +1701,7 @@ dependencies = [
 [[package]]
 name = "rocksdb"
 version = "0.18.0"
-source = "git+https://github.com/Rexagon/rust-rocksdb.git#bc9a77cd28975a63860d3e341dd5f8eaf6bf001a"
+source = "git+https://github.com/Rexagon/rust-rocksdb.git#ece1cd0723ab38f603445df19398b822a419d0fb"
 dependencies = [
  "libc",
  "librocksdb-sys",
@@ -1998,7 +1998,7 @@ dependencies = [
 [[package]]
 name = "tiny-adnl"
 version = "0.1.0"
-source = "git+https://github.com/broxus/tiny-adnl.git#8ed48c317fe7e56deff473909f9dc06414db4be3"
+source = "git+https://github.com/broxus/tiny-adnl.git#422484d5beec053a1e6618b6b39788c2c7ff36e7"
 dependencies = [
  "aes",
  "anyhow",
@@ -2025,6 +2025,7 @@ dependencies = [
  "ton_api",
  "ton_types",
  "x25519-dalek-ng",
+ "zstd",
 ]
 
 [[package]]
@@ -2084,7 +2085,7 @@ dependencies = [
 [[package]]
 name = "ton-indexer"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#4630685fd5607c6727bc0f6ee951c64ab0f4abe5"
+source = "git+https://github.com/broxus/ton-indexer.git#702237ef1c43f24b10de274487fb172a7beea9bc"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2128,7 +2129,7 @@ dependencies = [
 [[package]]
 name = "ton-indexer-alloc"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#4630685fd5607c6727bc0f6ee951c64ab0f4abe5"
+source = "git+https://github.com/broxus/ton-indexer.git#702237ef1c43f24b10de274487fb172a7beea9bc"
 dependencies = [
  "anyhow",
  "errno",
@@ -2594,10 +2595,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "zstd-sys"
-version = "1.6.3+zstd.1.5.2"
+name = "zstd"
+version = "0.11.1+zstd.1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc49afa5c8d634e75761feda8c592051e7eeb4683ba827211eb0d731d3402ea8"
+checksum = "77a16b8414fde0414e90c612eba70985577451c4c504b99885ebed24762cb81a"
+dependencies = [
+ "zstd-safe",
+]
+
+[[package]]
+name = "zstd-safe"
+version = "5.0.1+zstd.1.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7c12659121420dd6365c5c3de4901f97145b79651fb1d25814020ed2ed0585ae"
+dependencies = [
+ "libc",
+ "zstd-sys",
+]
+
+[[package]]
+name = "zstd-sys"
+version = "2.0.1+zstd.1.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fd07cbbc53846d9145dbffdf6dd09a7a0aa52be46741825f5c97bdd4f73f12b"
 dependencies = [
  "cc",
  "libc",
