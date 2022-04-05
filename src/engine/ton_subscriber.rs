@@ -192,14 +192,13 @@ impl TonSubscriber {
 
 #[async_trait::async_trait]
 impl ton_indexer::Subscriber for TonSubscriber {
-    async fn process_block(
-        &self,
-        _: BriefBlockMeta,
-        block: &BlockStuff,
-        _: Option<&BlockProofStuff>,
-        state: &ShardStateStuff,
-    ) -> Result<()> {
-        if let Err(e) = self.update_metrics(block, state) {
+    async fn process_block(&self, ctx: ProcessBlockContext<'_>) -> Result<()> {
+        let state = match ctx.shard_state_stuff() {
+            Some(state) => state,
+            None => return Ok(()),
+        };
+
+        if let Err(e) = self.update_metrics(ctx.block_stuff(), state) {
             log::error!("Failed to update metrics: {:?}", e);
         }
         Ok(())
