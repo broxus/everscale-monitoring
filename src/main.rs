@@ -2,6 +2,9 @@ use anyhow::{Context, Result};
 use everscale_monitoring::config::*;
 use everscale_monitoring::engine::*;
 
+#[global_allocator]
+static GLOBAL: ton_indexer::alloc::Allocator = ton_indexer::alloc::allocator();
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let app: App = argh::from_env();

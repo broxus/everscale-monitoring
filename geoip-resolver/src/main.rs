@@ -80,7 +80,7 @@ impl CmdResolve {
             Some(address) => address,
             None => public_ip::addr_v4()
                 .await
-                .ok_or(anyhow!("Failed to find public ip"))?,
+                .ok_or_else(|| anyhow!("Failed to find public ip"))?,
         };
 
         let nodes = search_nodes(SocketAddrV4::new(ip_address, self.port), global_config)
