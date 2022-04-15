@@ -810,7 +810,7 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "global-config"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#2a38e7254489c894f3de7cdfe37bb8d410a51c2d"
+source = "git+https://github.com/broxus/ton-indexer.git#00938756355a1e60619b5824c11f3ebf7e6c8f91"
 dependencies = [
  "anyhow",
  "base64",
@@ -1209,7 +1209,7 @@ dependencies = [
 [[package]]
 name = "nekoton-abi"
 version = "0.11.0"
-source = "git+https://github.com/broxus/nekoton.git#43d561f7501e89c69358f61f008899fbc7e3a4ae"
+source = "git+https://github.com/broxus/nekoton.git#cec308956dd30ffed1daf2615620d76ea2a2d1e1"
 dependencies = [
  "anyhow",
  "base64",
@@ -1235,7 +1235,7 @@ dependencies = [
 [[package]]
 name = "nekoton-derive"
 version = "0.10.0"
-source = "git+https://github.com/broxus/nekoton.git#43d561f7501e89c69358f61f008899fbc7e3a4ae"
+source = "git+https://github.com/broxus/nekoton.git#cec308956dd30ffed1daf2615620d76ea2a2d1e1"
 dependencies = [
  "either",
  "proc-macro2",
@@ -1246,7 +1246,7 @@ dependencies = [
 [[package]]
 name = "nekoton-utils"
 version = "0.10.0"
-source = "git+https://github.com/broxus/nekoton.git#43d561f7501e89c69358f61f008899fbc7e3a4ae"
+source = "git+https://github.com/broxus/nekoton.git#cec308956dd30ffed1daf2615620d76ea2a2d1e1"
 dependencies = [
  "anyhow",
  "base64",
@@ -1900,9 +1900,9 @@ dependencies = [
 
 [[package]]
 name = "sysinfo"
-version = "0.23.9"
+version = "0.23.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3fb8adaa82317f1e8a040281807f411803c9111303cfe129b4abb4a14b2c223"
+checksum = "4eea2ed6847da2e0c7289f72cb4f285f0bd704694ca067d32be811b2a45ea858"
 dependencies = [
  "cfg-if",
  "core-foundation-sys",
@@ -2120,7 +2120,7 @@ dependencies = [
 [[package]]
 name = "ton-indexer"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#2a38e7254489c894f3de7cdfe37bb8d410a51c2d"
+source = "git+https://github.com/broxus/ton-indexer.git#00938756355a1e60619b5824c11f3ebf7e6c8f91"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2165,7 +2165,7 @@ dependencies = [
 [[package]]
 name = "ton-indexer-alloc"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#2a38e7254489c894f3de7cdfe37bb8d410a51c2d"
+source = "git+https://github.com/broxus/ton-indexer.git#00938756355a1e60619b5824c11f3ebf7e6c8f91"
 dependencies = [
  "anyhow",
  "errno",
@@ -2220,7 +2220,7 @@ dependencies = [
 [[package]]
 name = "ton_block"
 version = "1.7.14"
-source = "git+https://github.com/broxus/ton-labs-block.git#e19b43070e876f45569256c73192aa46e4ab6eeb"
+source = "git+https://github.com/broxus/ton-labs-block.git#57d9eae1eaf7386315afeb4f311cf59c2b1cf7a1"
 dependencies = [
  "anyhow",
  "base64",
@@ -2271,7 +2271,7 @@ dependencies = [
 [[package]]
 name = "ton_types"
 version = "1.10.2"
-source = "git+https://github.com/broxus/ton-labs-types.git#69cae5221317af7ea6f26016a3bb61e732150a3d"
+source = "git+https://github.com/broxus/ton-labs-types.git#59c59eb1a462fd030fb9816f18cd1287fdf9d718"
 dependencies = [
  "anyhow",
  "base64",
@@ -2318,9 +2318,9 @@ checksum = "360dfd1d6d30e05fda32ace2c8c70e9c0a9da713275777f5a4dbb8a1893930c6"
 
 [[package]]
 name = "tracing"
-version = "0.1.33"
+version = "0.1.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80b9fa4360528139bc96100c160b7ae879f5567f49f1782b0b02035b0358ebf3"
+checksum = "5d0ecdcb44a79f0fe9844f0c4f33a342cbcbb5117de8001e6ba0dc2351327d09"
 dependencies = [
  "cfg-if",
  "pin-project-lite",
@@ -2341,9 +2341,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-core"
-version = "0.1.24"
+version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90442985ee2f57c9e1b548ee72ae842f4a9a20e3f417cc38dbc5dc684d9bb4ee"
+checksum = "f54c8ca710e81886d498c2fd3331b56c93aa248d49de2222ad2742247c60072f"
 dependencies = [
  "lazy_static",
 ]
