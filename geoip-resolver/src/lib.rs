@@ -117,8 +117,10 @@ async fn scan_overlay(
     Ok(())
 }
 
-fn generate_key() -> ed25519_dalek::SecretKey {
-    ed25519_dalek::SecretKey::generate(&mut rand::thread_rng())
+fn generate_key() -> [u8; 32] {
+    use rand::Rng;
+
+    rand::thread_rng().gen()
 }
 
 type NodeIps = FxHashSet<AdnlAddressUdp>;
