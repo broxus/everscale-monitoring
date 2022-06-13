@@ -49,7 +49,7 @@ pub async fn search_nodes(address: SocketAddrV4, global_config: GlobalConfig) ->
         for peer_id in static_nodes.iter().cloned() {
             let dht = &dht;
             tasks.push(async move {
-                let res = dht.query_dht_nodes(&peer_id, 10).await;
+                let res = dht.query_dht_nodes(&peer_id, 10, false).await;
                 (peer_id, res)
             });
         }

@@ -626,9 +626,9 @@ dependencies = [
 
 [[package]]
 name = "everscale-network"
-version = "0.3.2"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea0dab5a1d20d52d00b8a6db79846d7fba72a7c9c44da6383a1d9b4bc8693d4b"
+checksum = "d374d296a6f36622016d4d1e6077eea3427b07af7578d1a1a9beac29c3f4e437"
 dependencies = [
  "aes",
  "anyhow",
@@ -1232,7 +1232,7 @@ dependencies = [
 [[package]]
 name = "nekoton-abi"
 version = "0.11.0"
-source = "git+https://github.com/broxus/nekoton.git#8af8c5b386675c4da7d9a6a81f988f9b7beef4ae"
+source = "git+https://github.com/broxus/nekoton.git#4657390bd95dde1c9b105cba5ea1c0f1a515c04d"
 dependencies = [
  "anyhow",
  "base64",
@@ -1257,7 +1257,7 @@ dependencies = [
 [[package]]
 name = "nekoton-derive"
 version = "0.10.0"
-source = "git+https://github.com/broxus/nekoton.git#8af8c5b386675c4da7d9a6a81f988f9b7beef4ae"
+source = "git+https://github.com/broxus/nekoton.git#4657390bd95dde1c9b105cba5ea1c0f1a515c04d"
 dependencies = [
  "either",
  "proc-macro2",
@@ -1268,7 +1268,7 @@ dependencies = [
 [[package]]
 name = "nekoton-utils"
 version = "0.10.0"
-source = "git+https://github.com/broxus/nekoton.git#8af8c5b386675c4da7d9a6a81f988f9b7beef4ae"
+source = "git+https://github.com/broxus/nekoton.git#4657390bd95dde1c9b105cba5ea1c0f1a515c04d"
 dependencies = [
  "anyhow",
  "base64",
