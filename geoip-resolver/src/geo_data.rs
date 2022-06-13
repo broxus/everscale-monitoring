@@ -3,10 +3,10 @@ use std::net::SocketAddrV4;
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use everscale_network::utils::FxHashMap;
 use indicatif::ProgressBar;
 use pomfrit::formatter::DisplayPrometheusExt;
 use serde::{Deserialize, Serialize};
-use tiny_adnl::utils::FxHashMap;
 
 pub struct GeoDataImporter {
     db: GeoDb,

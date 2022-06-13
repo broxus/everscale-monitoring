@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use anyhow::{anyhow, Context, Result};
 use geoip_resolver::*;
-use global_config::*;
+use global_config::GlobalConfig;
 
 #[global_allocator]
 static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
@@ -47,7 +47,7 @@ struct CmdResolve {
     ip: Option<Ipv4Addr>,
 
     /// ADNL UDP port
-    #[argh(option, short = 'c', default = "30304")]
+    #[argh(option, short = 'c', default = "30305")]
     port: u16,
 
     /// path to global config file

@@ -3,10 +3,11 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
+use everscale_network::utils::now;
 use nekoton_abi::*;
 use once_cell::race::OnceBox;
 use pomfrit::formatter::*;
-use tiny_adnl::utils::*;
+use rustc_hash::FxHashMap;
 use ton_indexer::EngineMetrics;
 use ton_types::UInt256;
 
