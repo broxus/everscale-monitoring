@@ -56,7 +56,7 @@ pub struct NodeConfig {
 }
 
 impl NodeConfig {
-    pub async fn build_indexer_config(self) -> Result<ton_indexer::NodeConfig> {
+    pub async fn build_indexer_config(mut self) -> Result<ton_indexer::NodeConfig> {
         // Determine public ip
         let ip_address = match self.adnl_public_ip {
             Some(address) => address,
@@ -72,6 +72,9 @@ impl NodeConfig {
 
         // Prepare DB folder
         std::fs::create_dir_all(&self.db_path)?;
+
+        self.rldp_options.force_compression = true;
+        self.overlay_shard_options.force_compression = true;
 
         // Done
         Ok(ton_indexer::NodeConfig {
