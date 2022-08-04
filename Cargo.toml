@@ -10,7 +10,7 @@ members = ["geoip-resolver"]
 anyhow = "1.0"
 argh = "0.1"
 async-trait = "0.1"
-config = { version = "0.11", default-features = false, features = ["yaml"] }
+config = { version = "0.13", default-features = false, features = ["yaml"] }
 everscale-network = "0.3"
 futures = "0.3"
 log = "0.4"
@@ -23,7 +23,7 @@ rand = "0.8"
 regex = "1.5"
 rustc-hash = "1.1.0"
 serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.8"
+serde_yaml = "0.9"
 thiserror = "1.0"
 tokio = { version = "1.17.0", features = ["rt-multi-thread", "sync", "macros", "parking_lot"] }
 
