@@ -38,7 +38,7 @@ impl TonSubscriber {
         })
     }
 
-    pub async fn start(&self, engine: &ton_indexer::Engine) -> Result<()> {
+    pub async fn start(&self, engine: &Engine) -> Result<()> {
         let last_key_block = engine
             .load_last_key_block()
             .await
@@ -191,7 +191,7 @@ impl TonSubscriber {
 }
 
 #[async_trait::async_trait]
-impl ton_indexer::Subscriber for TonSubscriber {
+impl Subscriber for TonSubscriber {
     async fn process_block(&self, ctx: ProcessBlockContext<'_>) -> Result<()> {
         let state = match ctx.shard_state_stuff() {
             Some(state) => state,

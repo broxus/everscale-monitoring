@@ -2,16 +2,17 @@ use std::io::Write;
 use std::net::{Ipv4Addr, SocketAddrV4};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
+use std::process::{ExitCode, Termination};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use geoip_resolver::*;
 use global_config::GlobalConfig;
 
 #[global_allocator]
-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
+static GLOBAL: broxus_util::alloc::Allocator = broxus_util::alloc::allocator();
 
 #[tokio::main]
-async fn main() {
+async fn main() -> impl Termination {
     env_logger::init();
 
     let app: App = argh::from_env();
@@ -20,8 +21,9 @@ async fn main() {
         Subcommand::Import(import) => import.execute(),
     } {
         eprintln!("{:?}", e);
-        std::process::exit(1);
+        return ExitCode::FAILURE;
     }
+    ExitCode::SUCCESS
 }
 
 #[derive(argh::FromArgs)]
@@ -76,12 +78,7 @@ impl CmdResolve {
         let global_config =
             GlobalConfig::load(self.global_config).context("Failed to load global config")?;
 
-        let ip_address = match self.ip {
-            Some(address) => address,
-            None => public_ip::addr_v4()
-                .await
-                .ok_or_else(|| anyhow!("Failed to find public ip"))?,
-        };
+        let ip_address = broxus_util::resolve_public_ip(self.ip).await?;
 
         let nodes = search_nodes(SocketAddrV4::new(ip_address, self.port), global_config)
             .await

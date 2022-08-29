@@ -48,6 +48,12 @@ pub struct NodeConfig {
     /// Whether old blocks will be removed on each new key block
     pub blocks_gc_enabled: bool,
 
+    /// Archives GC and uploader options
+    pub archive_options: Option<ton_indexer::ArchiveOptions>,
+
+    /// Start from the specified seqno
+    pub start_from: Option<u32>,
+
     pub adnl_options: adnl::NodeOptions,
     pub rldp_options: rldp::NodeOptions,
     pub dht_options: dht::NodeOptions,
@@ -58,12 +64,7 @@ pub struct NodeConfig {
 impl NodeConfig {
     pub async fn build_indexer_config(mut self) -> Result<ton_indexer::NodeConfig> {
         // Determine public ip
-        let ip_address = match self.adnl_public_ip {
-            Some(address) => address,
-            None => public_ip::addr_v4()
-                .await
-                .ok_or(ConfigError::PublicIpNotFound)?,
-        };
+        let ip_address = broxus_util::resolve_public_ip(self.adnl_public_ip).await?;
         log::info!("Using public ip: {}", ip_address);
 
         // Generate temp keys
@@ -72,6 +73,11 @@ impl NodeConfig {
 
         // Prepare DB folder
         std::fs::create_dir_all(&self.db_path)?;
+
+        let old_blocks_policy = match self.start_from {
+            None => ton_indexer::OldBlocksPolicy::Ignore,
+            Some(from_seqno) => ton_indexer::OldBlocksPolicy::Sync { from_seqno },
+        };
 
         self.rldp_options.force_compression = true;
         self.overlay_shard_options.force_compression = true;
@@ -95,8 +101,9 @@ impl NodeConfig {
                 }),
             shard_state_cache_options: None,
             max_db_memory_usage: self.max_db_memory_usage,
-            archive_options: Some(Default::default()),
+            archive_options: self.archive_options,
             sync_options: ton_indexer::SyncOptions {
+                old_blocks_policy,
                 parallel_archive_downloads: self.parallel_archive_downloads,
                 ..Default::default()
             },
@@ -120,6 +127,8 @@ impl Default for NodeConfig {
             parallel_archive_downloads: 16,
             states_gc_enabled: true,
             blocks_gc_enabled: true,
+            archive_options: Some(Default::default()),
+            start_from: None,
             adnl_options: Default::default(),
             rldp_options: Default::default(),
             dht_options: Default::default(),
@@ -127,10 +136,4 @@ impl Default for NodeConfig {
             neighbours_options: Default::default(),
         }
     }
-}
-
-#[derive(thiserror::Error, Debug)]
-enum ConfigError {
-    #[error("Failed to find public ip")]
-    PublicIpNotFound,
 }
