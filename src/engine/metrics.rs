@@ -503,9 +503,7 @@ where
         ton_abi::TokenValue::Map(ton_abi::ParamType::Uint(256), _, values) => {
             let mut map = BTreeMap::<UInt256, V>::new();
             for (key, value) in values {
-                let key = key
-                    .parse::<UInt256>()
-                    .map_err(|_| UnpackerError::InvalidAbi)?;
+                let key = uint256_bytes::unpack(&key.clone().into())?;
                 let value: V = value.to_owned().unpack()?;
                 map.insert(key, value);
             }
