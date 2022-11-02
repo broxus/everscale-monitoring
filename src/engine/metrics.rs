@@ -468,10 +468,7 @@ pub struct CurrentElectionData {
     pub min_stake: u128,
     #[abi(gram)]
     pub total_stake: u128,
-    #[abi(
-        unpack_with = "unpack_map_uint256_tuple",
-        param_type_with = "members_param_type"
-    )]
+    #[abi]
     pub members: BTreeMap<UInt256, ElectionMember>,
     #[abi(bool)]
     pub failed: bool,
@@ -487,37 +484,10 @@ pub struct ElectionMember {
     pub created_at: u32,
     #[abi(uint32)]
     pub max_factor: u32,
-    #[abi(with = "uint256_bytes")]
+    #[abi(uint256)]
     pub src_addr: UInt256,
-    #[abi(with = "uint256_bytes")]
+    #[abi(uint256)]
     pub adnl_addr: UInt256,
-}
-
-pub fn unpack_map_uint256_tuple<V>(
-    value: &ton_abi::TokenValue,
-) -> UnpackerResult<BTreeMap<UInt256, V>>
-where
-    ton_abi::TokenValue: UnpackAbi<V>,
-{
-    match value {
-        ton_abi::TokenValue::Map(ton_abi::ParamType::Uint(256), _, values) => {
-            let mut map = BTreeMap::<UInt256, V>::new();
-            for (key, value) in values {
-                let key = uint256_bytes::unpack(&key.clone().into())?;
-                let value: V = value.to_owned().unpack()?;
-                map.insert(key, value);
-            }
-            Ok(map)
-        }
-        _ => Err(UnpackerError::InvalidAbi),
-    }
-}
-
-fn members_param_type() -> ton_abi::ParamType {
-    ton_abi::ParamType::Map(
-        Box::new(UInt256::param_type()),
-        Box::new(ElectionMember::param_type()),
-    )
 }
 
 fn make_short_shard_name(id: u64) -> String {

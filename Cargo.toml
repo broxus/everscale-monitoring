@@ -23,7 +23,7 @@ rustc-hash = "1.1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
 thiserror = "1.0"
-tokio = { version = "1.17.0", features = ["rt-multi-thread", "sync", "macros", "parking_lot"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "macros", "parking_lot"] }
 
 nekoton-abi = { git = "https://github.com/broxus/nekoton.git", features = ["derive"] }
 
