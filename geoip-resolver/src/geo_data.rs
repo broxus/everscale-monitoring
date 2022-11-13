@@ -3,9 +3,9 @@ use std::net::SocketAddrV4;
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use everscale_network::utils::FxHashMap;
 use indicatif::ProgressBar;
 use pomfrit::formatter::DisplayPrometheusExt;
+use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 pub struct GeoDataImporter {

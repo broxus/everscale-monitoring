@@ -17,21 +17,3 @@ metrics_settings:
   metrics_path: "/metrics"
   # Metrics update interval in seconds. Default: 10
   collection_interval_sec: 10
-# log4rs settings.
-# See https://docs.rs/log4rs/1.0.0/log4rs/ for more details
-logger_settings:
-  appenders:
-    stdout:
-      kind: console
-      encoder:
-        pattern: "{h({l})} {M} = {m} {n}"
-  root:
-    level: error
-    appenders:
-      - stdout
-  loggers:
-    everscale-monitoring:
-      level: info
-      appenders:
-        - stdout
-      additive: false

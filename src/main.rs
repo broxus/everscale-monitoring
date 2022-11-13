@@ -7,6 +7,7 @@ static GLOBAL: broxus_util::alloc::Allocator = broxus_util::alloc::allocator();
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
     let app: App = argh::from_env();
     match app.command {
         Subcommand::Run(run) => run.execute().await,
@@ -42,8 +43,6 @@ struct CmdRun {
 impl CmdRun {
     async fn execute(self) -> Result<()> {
         let config: AppConfig = broxus_util::read_config(&self.config)?;
-        let _logger =
-            broxus_util::init_logger(&config.logger_settings).context("Failed to init logger")?;
 
         let global_config = ton_indexer::GlobalConfig::load(&self.global_config)
             .context("Failed to open global config")?;

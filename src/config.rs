@@ -13,10 +13,6 @@ pub struct AppConfig {
     pub node_settings: NodeConfig,
 
     pub metrics_settings: pomfrit::Config,
-
-    /// log4rs settings.
-    /// See [docs](https://docs.rs/log4rs/1.0.0/log4rs/) for more details
-    pub logger_settings: serde_yaml::Value,
 }
 
 /// TON node settings
@@ -57,7 +53,7 @@ pub struct NodeConfig {
     pub adnl_options: adnl::NodeOptions,
     pub rldp_options: rldp::NodeOptions,
     pub dht_options: dht::NodeOptions,
-    pub overlay_shard_options: overlay::ShardOptions,
+    pub overlay_shard_options: overlay::OverlayOptions,
     pub neighbours_options: ton_indexer::NeighboursOptions,
 }
 
@@ -65,7 +61,7 @@ impl NodeConfig {
     pub async fn build_indexer_config(mut self) -> Result<ton_indexer::NodeConfig> {
         // Determine public ip
         let ip_address = broxus_util::resolve_public_ip(self.adnl_public_ip).await?;
-        log::info!("Using public ip: {}", ip_address);
+        tracing::info!("Using public ip: {}", ip_address);
 
         // Generate temp keys
         let adnl_keys = ton_indexer::NodeKeys::load(self.temp_keys_path, false)

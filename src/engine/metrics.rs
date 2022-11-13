@@ -3,7 +3,7 @@ use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
-use everscale_network::utils::now;
+use broxus_util::now;
 use nekoton_abi::*;
 use once_cell::race::OnceBox;
 use pomfrit::formatter::*;
@@ -402,7 +402,7 @@ impl ElectionsState {
             return Ok(());
         }
 
-        log::info!("Updating elector state");
+        tracing::info!("updating elector state");
         let account = match elector_account.read_account()? {
             ton_block::Account::Account(account) => account,
             ton_block::Account::AccountNone => return Ok(()),

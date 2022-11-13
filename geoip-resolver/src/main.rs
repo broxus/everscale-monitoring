@@ -13,7 +13,7 @@ static GLOBAL: broxus_util::alloc::Allocator = broxus_util::alloc::allocator();
 
 #[tokio::main]
 async fn main() -> impl Termination {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let app: App = argh::from_env();
     if let Err(e) = match app.command {

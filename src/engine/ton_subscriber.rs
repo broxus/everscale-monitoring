@@ -199,7 +199,7 @@ impl Subscriber for TonSubscriber {
         };
 
         if let Err(e) = self.update_metrics(ctx.block_stuff(), state) {
-            log::error!("Failed to update metrics: {:?}", e);
+            tracing::error!("failed to update metrics: {e:?}");
         }
         Ok(())
     }
