@@ -10,6 +10,7 @@ members = ["geoip-resolver"]
 anyhow = "1.0"
 argh = "0.1"
 async-trait = "0.1"
+atty = "0.2"
 broxus-util = { version = "0.1.4", features = ["serde", "config", "alloc", "public-ip"] }
 config = { version = "0.13", default-features = false, features = ["yaml"] }
 everscale-network = "0.4"
