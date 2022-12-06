@@ -18,10 +18,8 @@ impl MemoryStorage {
     }
 
     pub fn insert_or_update_node(&self, adnl: &[u8; 32], node_ip: Option<SocketAddrV4>) {
-        tracing::info!("UPDATING MEMORY CACHE");
         if let Some(mut address) = self.nodes.get_mut(adnl) {
             if address.is_none() {
-                tracing::info!("UPDATING MEMORY CACHE. HIT HERE");
                 *address = node_ip
             }
         } else {
