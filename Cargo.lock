@@ -46,7 +46,7 @@ checksum = "983cd8b9d4b02a6dc6ffa557262eb5858a27a0038ffffe21a0f133eaa819a164"
 [[package]]
 name = "archive-uploader"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git?branch=dht-expose#9e7eef0b4c6eb6d16ab00d1e5531374f1392eb1f"
+source = "git+https://github.com/broxus/ton-indexer.git#8ecb17acee4d14fa2a4b3d86bfaedd1705be3dc0"
 dependencies = [
  "anyhow",
  "base64",
@@ -761,6 +761,7 @@ name = "everscale-monitoring"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arc-swap",
  "argh",
  "async-trait",
  "atty",
@@ -999,7 +1000,7 @@ dependencies = [
  "csv",
  "everscale-network",
  "futures",
- "global-config 0.1.0 (git+https://github.com/broxus/ton-indexer.git)",
+ "global-config",
  "indicatif",
  "pomfrit",
  "rand",
@@ -1031,21 +1032,7 @@ checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 [[package]]
 name = "global-config"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git?branch=dht-expose#9e7eef0b4c6eb6d16ab00d1e5531374f1392eb1f"
-dependencies = [
- "anyhow",
- "base64",
- "everscale-crypto",
- "everscale-network",
- "serde",
- "serde_json",
- "ton_block",
-]
-
-[[package]]
-name = "global-config"
-version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#9d79752db223913b7ddd3ffa2be659613045a7dc"
+source = "git+https://github.com/broxus/ton-indexer.git#8ecb17acee4d14fa2a4b3d86bfaedd1705be3dc0"
 dependencies = [
  "anyhow",
  "base64",
@@ -2685,7 +2672,7 @@ dependencies = [
 [[package]]
 name = "ton-indexer"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git?branch=dht-expose#9e7eef0b4c6eb6d16ab00d1e5531374f1392eb1f"
+source = "git+https://github.com/broxus/ton-indexer.git#8ecb17acee4d14fa2a4b3d86bfaedd1705be3dc0"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -2699,7 +2686,7 @@ dependencies = [
  "everscale-network",
  "fdlimit",
  "futures-util",
- "global-config 0.1.0 (git+https://github.com/broxus/ton-indexer.git?branch=dht-expose)",
+ "global-config",
  "hex",
  "itertools",
  "libc",

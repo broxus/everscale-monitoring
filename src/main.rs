@@ -12,6 +12,7 @@ async fn main() -> Result<()> {
     } else {
         tracing_subscriber::fmt::fmt().without_time().init();
     }
+
     let app: App = argh::from_env();
     match app.command {
         Subcommand::Run(run) => run.execute().await,

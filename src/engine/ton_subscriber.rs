@@ -1,19 +1,19 @@
+use std::net::SocketAddrV4;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::memory_storage::MemoryStorage;
 use anyhow::{anyhow, Context, Result};
+use arc_swap::ArcSwapOption;
 use everscale_network::adnl::NodeIdShort;
 use everscale_network::dht;
 use everscale_network::overlay::IdFull;
-use futures::stream::FuturesOrdered;
-use futures::stream::StreamExt;
-use tokio::sync::Mutex;
+use futures::stream::{FuturesOrdered, StreamExt};
+use tl_proto::TlWrite;
 use ton_block::{
-    BinTreeType, ConfigParamEnum, ConfigParams, Deserializable, GetRepresentationHash,
-    HashmapAugType, McStateExtra, ShardAccount, ShardIdent, ValidatorSet,
+    ConfigParamEnum, ConfigParams, ConsensusConfig, GetRepresentationHash, HashmapAugType,
+    McBlockExtra, McStateExtra, ShardAccount, ShardIdent, ValidatorDescr, ValidatorSet,
 };
 use ton_indexer::utils::*;
 use ton_indexer::*;
@@ -25,7 +25,7 @@ use super::metrics::*;
 
 pub struct TonSubscriber {
     metrics: Arc<MetricsState>,
-    last_key_block_extra: Mutex<Arc<Option<ConfigParams>>>,
+    last_config: ArcSwapOption<ConfigParams>,
     elector_address: ton_block::MsgAddressInt,
     elector_address_hash: ton_types::UInt256,
     first_mc_block: AtomicBool,
@@ -34,11 +34,7 @@ pub struct TonSubscriber {
 }
 
 impl TonSubscriber {
-    pub fn new(
-        metrics: Arc<MetricsState>,
-        dht: Arc<dht::Node>,
-        memory_storage: Arc<MemoryStorage>,
-    ) -> Arc<Self> {
+    pub fn new(metrics: Arc<MetricsState>, dht: Arc<dht::Node>) -> Arc<Self> {
         let elector_address_hash = ton_types::UInt256::from_str(
             "3333333333333333333333333333333333333333333333333333333333333333",
         )
@@ -51,15 +47,14 @@ impl TonSubscriber {
         )
         .expect("Shouldn't fail");
 
-        let extra = Mutex::new(Arc::new(None));
         Arc::new(Self {
             metrics,
-            last_key_block_extra: extra,
+            last_config: Default::default(),
             elector_address,
             elector_address_hash,
             first_mc_block: AtomicBool::new(true),
             dht,
-            memory_storage,
+            memory_storage: Arc::new(Default::default()),
         })
     }
 
@@ -80,18 +75,21 @@ impl TonSubscriber {
             .ok_or(TonSubscriberError::NotAMasterChainBlock)?;
 
         let config = mc_extra.config().context("Key block doesn't have config")?;
-        self.update_last_key_block_config(config).await;
-
-        self.metrics
-            .update_config_metrics(last_key_block.id().seq_no, config)
-            .context("Failed to update config metrics")?;
+        self.update_last_config(last_key_block.id(), Arc::new(config.clone()))?;
 
         Ok(())
     }
 
-    async fn update_last_key_block_config(&self, config: &ConfigParams) {
-        let mut extra = self.last_key_block_extra.lock().await;
-        *extra = Arc::new(Some(config.clone()));
+    fn update_last_config(
+        &self,
+        block_id: &ton_block::BlockIdExt,
+        config: Arc<ConfigParams>,
+    ) -> Result<()> {
+        self.metrics
+            .update_config_metrics(block_id.seq_no, config.as_ref())
+            .context("Failed to update config metrics")?;
+        self.last_config.store(Some(config));
+        Ok(())
     }
 
     async fn update_metrics(&self, block: &BlockStuff, state: &ShardStateStuff) -> Result<()> {
@@ -165,35 +163,18 @@ impl TonSubscriber {
                 .read_custom()?
                 .ok_or(TonSubscriberError::NotAMasterChainBlock)?;
 
-            let mut shard_count = 0u32;
             let mut shards: Vec<ShardIdent> = Vec::new();
-            shards.push(ShardIdent::masterchain());
-
             mc_extra.hashes().iterate_shards(|shard, _| {
                 shards.push(shard);
                 Ok(true)
             })?;
 
-            mc_extra.hashes().iterate_slices(|mut slice| {
-                let value = ShardDescrTreeRef::construct_from(&mut slice)?.0;
-                value.iterate(|_, _| {
-                    shard_count += 1;
-                    Ok(true)
-                })?;
-
-                Ok(true)
-            })?;
-
             self.metrics.update_masterchain_stats(MasterChainStats {
-                shard_count,
+                shard_count: shards.len(),
                 seqno,
                 utime,
                 transaction_count,
             });
-
-            if let Some(config) = mc_extra.config() {
-                self.update_last_key_block_config(config).await;
-            }
 
             let elector_account = state
                 .state()
@@ -211,86 +192,66 @@ impl TonSubscriber {
                 self.first_mc_block.store(false, Ordering::Release);
             }
 
-            let current_config = self.last_key_block_extra.lock().await;
-            let current_config = current_config.as_ref();
-            if let Some(config) = current_config {
-                self.metrics.update_config_metrics(seqno, config)?;
-
-                let catchain_config = config
-                    .catchain_config()
-                    .context("Failed to get catchain config")?;
-                let validator_set = config
-                    .validator_set()
-                    .context("Failed to get full validator set")?;
-
-                let mut private_overlays: Vec<PrivateOverlayStats> = Vec::new();
-
-                let shard_state_extra = state.shard_state_extra()?;
-                for shard in shards {
-                    let (val_subset, _) = validator_set.calc_subset(
-                        &catchain_config,
-                        shard.shard_prefix_with_tag(),
-                        shard.workchain_id(),
-                        catchain_seqno,
-                        utime.into(),
-                    )?;
-
-                    let validator_subset = ValidatorSet::new(0, 0, 0, val_subset)
-                        .context("Failed to create validator set")?;
-
-                    let nodes_data = validator_subset
-                        .list()
-                        .iter()
-                        .map(|x| {
-                            let key = everscale_crypto::tl::PublicKey::Ed25519 {
-                                key: x.public_key.as_slice(),
-                            };
-                            (
-                                x.adnl_addr
-                                    .unwrap_or_else(|| {
-                                        let adnl = tl_proto::hash(key);
-                                        UInt256::from(adnl)
-                                    })
-                                    .inner(),
-                                *x.public_key.as_slice(),
-                            )
-                        })
-                        .collect::<Vec<_>>();
-
-                    let session_options_hash = compute_session_opts_hash(shard_state_extra)?;
-                    let session = calculate_catchain_session_hash(
-                        validator_subset.clone(),
-                        shard,
-                        block_info.prev_key_block_seqno(),
-                        catchain_seqno,
-                        session_options_hash,
-                    )?;
-
-                    let node_ids: Vec<[u8; 32]> =
-                        nodes_data.iter().map(|(adnl, _)| *adnl).collect::<Vec<_>>();
-
-                    let validator_subset_infos = get_validator_infos(
-                        nodes_data,
-                        elector_account.as_ref(),
-                        &self.dht,
-                        &self.memory_storage,
-                    )
-                    .await?;
-
-                    let private_overlay_hash =
-                        IdFull::for_catchain_overlay(&session, node_ids.iter());
-
-                    let stats = PrivateOverlayStats {
-                        overlay_id: hex::encode(private_overlay_hash.compute_short_id().as_slice()),
-                        workchain_id: shard.workchain_id(),
-                        shard_id: hex::encode(shard.shard_prefix_with_tag().to_be_bytes()),
-                        catchain_seqno,
-                        validator_subset_infos,
-                    };
-                    private_overlays.push(stats);
+            let config = match mc_extra.config() {
+                Some(config) => {
+                    let config = Arc::new(config.clone());
+                    self.update_last_config(block_id, config.clone())?;
+                    config
                 }
-                self.metrics.update_private_overlays(private_overlays);
+                None => match self.last_config.load_full() {
+                    Some(config) => config,
+                    None => return Ok(()),
+                },
+            };
+
+            let catchain_config = config
+                .catchain_config()
+                .context("Failed to get catchain config")?;
+            let consensus_config = config
+                .consensus_config()
+                .context("Failed to get consensus config")?;
+            let validator_set = config
+                .validator_set()
+                .context("Failed to get full validator set")?;
+
+            let mut private_overlays: Vec<PrivateOverlayStats> = Vec::new();
+            for shard in std::iter::once(ShardIdent::masterchain()).chain(shards) {
+                let (subset, _) = validator_set.calc_subset(
+                    &catchain_config,
+                    shard.shard_prefix_with_tag(),
+                    shard.workchain_id(),
+                    catchain_seqno,
+                    utime.into(),
+                )?;
+
+                let session = calculate_catchain_session_hash(
+                    shard,
+                    &subset,
+                    block_info.prev_key_block_seqno(),
+                    catchain_seqno,
+                    &consensus_config,
+                );
+
+                let validator_subset_infos = get_validator_infos(
+                    nodes_data,
+                    elector_account.as_ref(),
+                    &self.dht,
+                    &self.memory_storage,
+                )
+                .await?;
+
+                let private_overlay_hash = IdFull::for_catchain_overlay(&session, node_ids.iter());
+
+                let stats = PrivateOverlayStats {
+                    overlay_id: hex::encode(private_overlay_hash.compute_short_id().as_slice()),
+                    workchain_id: shard.workchain_id(),
+                    shard_id: hex::encode(shard.shard_prefix_with_tag().to_be_bytes()),
+                    catchain_seqno,
+                    validator_subset_infos,
+                };
+                private_overlays.push(stats);
             }
+            self.metrics.update_private_overlays(private_overlays);
         } else {
             // Update shard chains metrics
             let stats = ShardChainStats {
@@ -315,7 +276,7 @@ impl TonSubscriber {
 }
 
 async fn get_validator_infos(
-    nodes_data: Vec<([u8; 32], [u8; 32])>,
+    validators: &[ValidatorDescr],
     elector_account: Option<&ShardAccount>,
     dht: &Arc<dht::Node>,
     memory_storage: &MemoryStorage,
@@ -344,7 +305,7 @@ async fn get_validator_infos(
                 },
                 None => match dht.find_address(&node_id).await {
                     Ok((address, _)) => {
-                        memory_storage.insert_or_update_node(val, Some(address));
+                        memory_storage.set(val, address);
                         ValidatorInfo {
                             adnl_address: hex::encode(val),
                             known_ip_address: Some(address.to_string()),
@@ -352,7 +313,6 @@ async fn get_validator_infos(
                             bad_validator: false,
                         }
                     }
-
                     Err(e) => {
                         tracing::warn!(
                             "Failed to find address for node: {}. Error: {:?}",
@@ -382,13 +342,48 @@ async fn get_validator_infos(
     Ok(validator_subset_infos)
 }
 
-fn compute_session_opts_hash(mc_block_extra: &McStateExtra) -> Result<[u8; 32]> {
-    let consensus_config = match mc_block_extra.config.config(29)? {
-        Some(ConfigParamEnum::ConfigParam29(ccc)) => ccc.consensus_config,
-        _ => return Err(anyhow!("no CatchainConfig in config_params")),
-    };
+fn calculate_catchain_session_hash(
+    shard: ShardIdent,
+    validators: &[ValidatorDescr],
+    last_key_block_seqno: u32,
+    catchain_seqno: u32,
+    consensus_config: &ConsensusConfig,
+) -> [u8; 32] {
+    #[derive(TlWrite)]
+    #[tl(boxed, id = "validatorSession.configNew", scheme = "scheme.tl")]
+    pub struct ConfigNew {
+        pub catchain_idle_timeout: f64,
+        pub catchain_max_deps: u32,
+        pub round_candidates: u32,
+        pub next_candidate_delay: f64,
+        pub round_attempt_duration: u32,
+        pub max_round_attempts: u32,
+        pub max_block_size: u32,
+        pub max_collated_data_size: u32,
+        pub new_catchain_ids: bool,
+    }
 
-    let options_new = ConfigNew {
+    #[derive(TlWrite)]
+    #[tl(boxed, id = "validator.groupMember", scheme = "scheme.tl")]
+    pub struct GroupMember {
+        pub public_key_hash: [u8; 32],
+        pub adnl: [u8; 32],
+        pub weight: u64,
+    }
+
+    #[derive(TlWrite)]
+    #[tl(boxed, id = "validator.groupNew", scheme = "scheme.tl")]
+    pub struct GroupNew {
+        pub workchain: i32,
+        pub shard: u64,
+        pub vertical_seqno: u32,
+        pub last_key_block_seqno: u32,
+        pub catchain_seqno: u32,
+        pub config_hash: [u8; 32],
+        pub members: Vec<GroupMember>,
+    }
+
+    let config = ConfigNew {
         catchain_idle_timeout: Duration::from_millis(consensus_config.consensus_timeout_ms.into())
             .as_secs_f64(),
         catchain_max_deps: consensus_config.catchain_max_deps,
@@ -403,19 +398,10 @@ fn compute_session_opts_hash(mc_block_extra: &McStateExtra) -> Result<[u8; 32]> 
         max_collated_data_size: consensus_config.max_collated_bytes,
         new_catchain_ids: consensus_config.new_catchain_ids,
     };
-    let serialized_options = tl_proto::serialize(options_new);
-    Ok(UInt256::calc_file_hash(serialized_options.as_slice()).inner())
-}
 
-fn calculate_catchain_session_hash(
-    validators: ValidatorSet,
-    shard: ShardIdent,
-    last_key_block_seqno: u32,
-    catchain_seqno: u32,
-    session_config_hash: [u8; 32],
-) -> Result<[u8; 32]> {
-    let group_members = validators
-        .list()
+    let config_hash = tl_proto::hash(config);
+
+    let members = validators
         .iter()
         .map(|validator| GroupMember {
             public_key_hash: validator
@@ -435,13 +421,11 @@ fn calculate_catchain_session_hash(
 
         last_key_block_seqno,
         catchain_seqno,
-        config_hash: session_config_hash,
-        members: group_members,
+        config_hash,
+        members,
     };
 
-    let bytes = tl_proto::hash(group);
-
-    Ok(bytes)
+    tl_proto::hash(group)
 }
 
 #[async_trait::async_trait]
@@ -456,6 +440,25 @@ impl Subscriber for TonSubscriber {
             tracing::error!("failed to update metrics: {e:?}");
         }
         Ok(())
+    }
+}
+
+#[derive(Default)]
+pub struct MemoryStorage {
+    nodes: FxDashMap<[u8; 32], Option<SocketAddrV4>>,
+}
+
+impl MemoryStorage {
+    pub fn get(&self, adnl: &[u8; 32]) -> Option<SocketAddrV4> {
+        self.nodes.get(adnl).and_then(|x| *x)
+    }
+
+    pub fn set(&self, adnl: &[u8; 32], node_ip: SocketAddrV4) {
+        self.nodes.insert(*adnl, Some(node_ip));
+    }
+
+    pub fn clear(&self) {
+        self.nodes.clear();
     }
 }
 

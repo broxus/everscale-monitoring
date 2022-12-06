@@ -1,5 +1,5 @@
 use std::collections::{btree_map, hash_map, BTreeMap};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use anyhow::{anyhow, Context, Result};
@@ -23,7 +23,7 @@ pub struct BlockInfo {
 
 #[derive(Debug, Copy, Clone)]
 pub struct MasterChainStats {
-    pub shard_count: u32,
+    pub shard_count: usize,
     pub seqno: u32,
     pub utime: u32,
     pub transaction_count: u32,
@@ -114,7 +114,7 @@ pub struct MetricsState {
     messages_total: AtomicU32,
     transactions_total: AtomicU32,
 
-    shard_count: AtomicU32,
+    shard_count: AtomicUsize,
     shards: parking_lot::RwLock<ShardsMap>,
     private_overlays: parking_lot::RwLock<Vec<PrivateOverlayStats>>,
     mc_seq_no: AtomicU32,
