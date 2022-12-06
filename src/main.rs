@@ -7,12 +7,7 @@ static GLOBAL: broxus_util::alloc::Allocator = broxus_util::alloc::allocator();
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    if atty::is(atty::Stream::Stdout) {
-        tracing_subscriber::fmt::init();
-    } else {
-        tracing_subscriber::fmt::fmt().without_time().init();
-    }
-
+    tracing_subscriber::fmt::init();
     let app: App = argh::from_env();
     match app.command {
         Subcommand::Run(run) => run.execute().await,

@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use ton_indexer::NodeNetwork;
 
 use self::metrics::*;
 use self::ton_subscriber::*;
 use crate::config::*;
+use crate::memory_storage::MemoryStorage;
 
 mod metrics;
 mod ton_subscriber;
@@ -29,15 +31,35 @@ impl Engine {
             }
         });
 
+        let node_config = config
+            .node_settings
+            .build_indexer_config()
+            .await
+            .context("Failed tp build node config")?;
+
+        let node_network_config = node_config.clone();
+        let network = NodeNetwork::new(
+            node_network_config.ip_address,
+            node_network_config.adnl_keys.build_keystore()?,
+            node_network_config.adnl_options,
+            node_network_config.rldp_options,
+            node_network_config.dht_options,
+            node_network_config.neighbours_options,
+            node_network_config.overlay_shard_options,
+            global_config.clone(),
+        )
+        .await
+        .context("Failed to init network")?;
+
+        let memory_storage = MemoryStorage::new();
+
         // Create and sync TON node
-        let ton_subscriber = TonSubscriber::new(metrics_state.clone());
+        let ton_subscriber =
+            TonSubscriber::new(metrics_state.clone(), network.dht().clone(), memory_storage);
         let ton_engine = ton_indexer::Engine::new(
-            config
-                .node_settings
-                .build_indexer_config()
-                .await
-                .context("Failed to build node config")?,
+            node_config,
             global_config,
+            network,
             vec![ton_subscriber.clone() as Arc<dyn ton_indexer::Subscriber>],
         )
         .await
@@ -45,7 +67,6 @@ impl Engine {
 
         // Set engine metrics object
         metrics_state.set_engine_metrics(ton_engine.metrics());
-
         // Done
         Ok(Self {
             _exporter: exporter,

@@ -11,6 +11,8 @@ use rustc_hash::FxHashMap;
 use ton_indexer::EngineMetrics;
 use ton_types::UInt256;
 
+use ton_abi::TokenValue;
+
 use crate::utils::AverageValueCounter;
 
 #[derive(Debug, Copy, Clone)]
@@ -35,6 +37,77 @@ pub struct ShardChainStats {
     pub transaction_count: u32,
 }
 
+#[derive(Debug, Clone)]
+pub struct PrivateOverlayStats {
+    pub overlay_id: String,
+    pub workchain_id: i32,
+    pub shard_id: String,
+    pub catchain_seqno: u32,
+    pub validator_subset_infos: Vec<ValidatorInfo>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ValidatorInfo {
+    pub adnl_address: String,
+    pub known_ip_address: Option<String>,
+    pub address: Option<String>,
+    pub bad_validator: bool,
+}
+
+fn parse_elector_data(data: ton_types::Cell) -> Result<ElectorData> {
+    static PARAM_TYPE: OnceBox<ton_abi::ParamType> = OnceBox::new();
+    let param_type = PARAM_TYPE.get_or_init(|| Box::new(ElectorData::param_type()));
+
+    let (elector_data, _) = TokenValue::read_from(
+        param_type,
+        data.into(),
+        true,
+        &ton_abi::contract::ABI_VERSION_2_1,
+        false,
+    )
+    .context("Failed to read elector data")?;
+
+    elector_data
+        .unpack()
+        .context("Failed to unpack elector data")
+}
+
+impl ValidatorInfo {
+    pub fn get_address(
+        node_public_key: &[u8; 32],
+        elector_account: &ton_block::ShardAccount,
+    ) -> Result<Option<[u8; 32]>> {
+        let account = match elector_account.read_account()? {
+            ton_block::Account::Account(account) => account,
+            ton_block::Account::AccountNone => anyhow::bail!("Failed to read elector account"),
+        };
+
+        let state = match account.storage.state {
+            ton_block::AccountState::AccountActive { state_init, .. } => state_init,
+            _ => anyhow::bail!("Elector account is not active"),
+        };
+
+        let data = match state.data {
+            Some(data) => data,
+            None => anyhow::bail!("Elector account is not active"),
+        };
+
+        let elector =
+            parse_elector_data(data).context("Failed to parse decoded past elections data")?;
+
+        let address = match elector.past_elections.iter().next() {
+            Some((_, first)) => first
+                .frozen_dict
+                .iter()
+                .find(|(key, _)| node_public_key == &key.inner())
+                .map(|(pubkey, _)| pubkey.inner()),
+            None => None,
+        };
+
+        Ok(address)
+    }
+}
+
 #[derive(Default)]
 pub struct MetricsState {
     blocks_total: AtomicU32,
@@ -43,6 +116,7 @@ pub struct MetricsState {
 
     shard_count: AtomicU32,
     shards: parking_lot::RwLock<ShardsMap>,
+    private_overlays: parking_lot::RwLock<Vec<PrivateOverlayStats>>,
     mc_seq_no: AtomicU32,
     mc_utime: AtomicU32,
     mc_avg_transaction_count: AverageValueCounter,
@@ -89,6 +163,10 @@ impl MetricsState {
                 }
             }
         }
+    }
+    pub fn update_private_overlays(&self, overlays: Vec<PrivateOverlayStats>) {
+        let mut w = self.private_overlays.write();
+        *w = overlays;
     }
 
     pub fn update_masterchain_stats(&self, stats: MasterChainStats) {
@@ -172,6 +250,35 @@ impl std::fmt::Display for MetricsState {
         const SHARD: &str = "shard";
         const SOFTWARE_VERSION: &str = "software_version";
         const ADDRESS: &str = "address";
+
+        for p_overlay in self.private_overlays.read().iter() {
+            f.begin_metric("overlay_common")
+                .label("overlay_id", &p_overlay.overlay_id)
+                .label(
+                    "shard_id",
+                    format!("{}:{}", p_overlay.workchain_id, &p_overlay.shard_id),
+                )
+                .label("catchain_seqno", p_overlay.catchain_seqno)
+                .empty()?;
+
+            for validator in &p_overlay.validator_subset_infos {
+                f.begin_metric("validator_common")
+                    .label("validator_overlay", &p_overlay.overlay_id)
+                    .label("validator_adnl", &validator.adnl_address)
+                    .label(
+                        "validator_ip",
+                        &validator
+                            .known_ip_address
+                            .clone()
+                            .unwrap_or_else(|| "-".to_string()),
+                    )
+                    .label(
+                        "validator_address",
+                        &validator.address.clone().unwrap_or_else(|| "-".to_string()),
+                    )
+                    .empty()?;
+            }
+        }
 
         f.begin_metric("frmon_aggregate")
             .label(COLLECTION, "blocks")
@@ -459,6 +566,65 @@ fn elector_state_params() -> &'static [ton_abi::Param] {
 }
 
 #[derive(Debug, UnpackAbi, KnownParamType)]
+pub struct ElectorData {
+    #[abi]
+    pub current_election: MaybeRef<CurrentElectionData>,
+    #[abi(param_type_with = "credits_param_type")]
+    pub credits: BTreeMap<UInt256, ton_block::Grams>,
+    #[abi(param_type_with = "past_elections_param_type")]
+    pub past_elections: BTreeMap<u32, PastElectionData>,
+    #[abi(gram)]
+    pub grams: u128,
+    #[abi(uint32)]
+    pub active_id: u32,
+
+    #[abi(uint256)]
+    pub active_hash: UInt256,
+}
+
+#[derive(Debug, UnpackAbi, KnownParamType)]
+pub struct PastElectionData {
+    #[abi(uint32)]
+    pub unfreeze_at: u32,
+    #[abi(uint32)]
+    pub stake_held: u32,
+    #[abi(uint256)]
+    pub vset_hash: UInt256,
+    #[abi(param_type_with = "frozen_dict_param_type")]
+    pub frozen_dict: BTreeMap<UInt256, FrozenStake>,
+    #[abi(gram)]
+    pub total_stake: u128,
+    #[abi(gram)]
+    pub bonuses: u128,
+    #[abi(param_type_with = "complaints_param_type")]
+    pub complaints: BTreeMap<UInt256, Complaint>,
+}
+
+#[derive(Debug, UnpackAbi, KnownParamType)]
+pub struct FrozenStake {
+    #[abi(uint256)]
+    pub addr: UInt256,
+    #[abi(uint64)]
+    pub weight: u64,
+    #[abi(gram)]
+    pub stake: u64,
+}
+
+#[derive(Debug, UnpackAbi, KnownParamType)]
+pub struct Complaint {
+    #[abi(uint8)]
+    pub _header: u8,
+    #[abi(cell)]
+    pub complaint: ton_types::Cell,
+    #[abi(param_type_with = "complaint_voters_param_type")]
+    pub voters: BTreeMap<u16, bool>,
+    #[abi(uint256)]
+    pub vset_id: UInt256,
+    #[abi]
+    pub weight_remaining: i64,
+}
+
+#[derive(Debug, UnpackAbi, KnownParamType)]
 pub struct CurrentElectionData {
     #[abi(uint32)]
     pub elect_at: u32,
@@ -498,3 +664,35 @@ type ShardsMap = FxHashMap<u64, ShardState>;
 type StakesMap = FxHashMap<String, u64>;
 
 type BlockVersions = BTreeMap<u32, AtomicU32>;
+
+fn credits_param_type() -> ton_abi::ParamType {
+    ton_abi::ParamType::Map(
+        Box::new(UInt256::param_type()),
+        Box::new(ton_block::Grams::param_type()),
+    )
+}
+
+fn past_elections_param_type() -> ton_abi::ParamType {
+    ton_abi::ParamType::Map(
+        Box::new(u32::param_type()),
+        Box::new(PastElectionData::param_type()),
+    )
+}
+
+fn frozen_dict_param_type() -> ton_abi::ParamType {
+    ton_abi::ParamType::Map(
+        Box::new(UInt256::param_type()),
+        Box::new(FrozenStake::param_type()),
+    )
+}
+
+fn complaints_param_type() -> ton_abi::ParamType {
+    ton_abi::ParamType::Map(
+        Box::new(UInt256::param_type()),
+        Box::new(Complaint::param_type()),
+    )
+}
+
+fn complaint_voters_param_type() -> ton_abi::ParamType {
+    ton_abi::ParamType::Map(Box::new(u16::param_type()), Box::new(bool::param_type()))
+}
