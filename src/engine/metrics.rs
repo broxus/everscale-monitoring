@@ -11,8 +11,6 @@ use rustc_hash::FxHashMap;
 use ton_indexer::EngineMetrics;
 use ton_types::UInt256;
 
-use ton_abi::TokenValue;
-
 use crate::utils::AverageValueCounter;
 
 #[derive(Debug, Copy, Clone)]
@@ -51,61 +49,24 @@ pub struct ValidatorInfo {
     pub adnl_address: String,
     pub known_ip_address: Option<String>,
     pub address: Option<String>,
-    pub bad_validator: bool,
-}
-
-fn parse_elector_data(data: ton_types::Cell) -> Result<ElectorData> {
-    static PARAM_TYPE: OnceBox<ton_abi::ParamType> = OnceBox::new();
-    let param_type = PARAM_TYPE.get_or_init(|| Box::new(ElectorData::param_type()));
-
-    let (elector_data, _) = TokenValue::read_from(
-        param_type,
-        data.into(),
-        true,
-        &ton_abi::contract::ABI_VERSION_2_1,
-        false,
-    )
-    .context("Failed to read elector data")?;
-
-    elector_data
-        .unpack()
-        .context("Failed to unpack elector data")
 }
 
 impl ValidatorInfo {
-    pub fn get_address(
-        node_public_key: &[u8; 32],
-        elector_account: &ton_block::ShardAccount,
-    ) -> Result<Option<[u8; 32]>> {
-        let account = match elector_account.read_account()? {
-            ton_block::Account::Account(account) => account,
-            ton_block::Account::AccountNone => anyhow::bail!("Failed to read elector account"),
-        };
-
-        let state = match account.storage.state {
-            ton_block::AccountState::AccountActive { state_init, .. } => state_init,
-            _ => anyhow::bail!("Elector account is not active"),
-        };
-
-        let data = match state.data {
-            Some(data) => data,
-            None => anyhow::bail!("Elector account is not active"),
-        };
-
-        let elector =
-            parse_elector_data(data).context("Failed to parse decoded past elections data")?;
-
-        let address = match elector.past_elections.iter().next() {
-            Some((_, first)) => first
-                .frozen_dict
-                .iter()
-                .find(|(key, _)| node_public_key == &key.inner())
-                .map(|(pubkey, _)| pubkey.inner()),
-            None => None,
-        };
-
-        Ok(address)
-    }
+    // pub fn get_address(
+    //     node_public_key: &[u8; 32],
+    //     elector_data: &ElectorData,
+    // ) -> Result<Option<[u8; 32]>> {
+    //     let address = match elector_data.past_elections.iter().next() {
+    //         Some((_, first)) => first
+    //             .frozen_dict
+    //             .iter()
+    //             .find(|(key, _)| node_public_key == &key.inner())
+    //             .map(|(pubkey, )| pubkey.inner()),
+    //         None => None,
+    //     };
+    //
+    //     Ok(address)
+    // }
 }
 
 #[derive(Default)]
