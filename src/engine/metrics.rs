@@ -1,16 +1,15 @@
 use std::collections::{btree_map, hash_map, BTreeMap};
+use std::net::SocketAddrV4;
 use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use broxus_util::now;
-use nekoton_abi::*;
-use once_cell::race::OnceBox;
 use pomfrit::formatter::*;
 use rustc_hash::FxHashMap;
 use ton_indexer::EngineMetrics;
-use ton_types::UInt256;
 
+use super::elector;
 use crate::utils::AverageValueCounter;
 
 #[derive(Debug, Copy, Clone)]
@@ -37,36 +36,39 @@ pub struct ShardChainStats {
 
 #[derive(Debug, Clone)]
 pub struct PrivateOverlayStats {
-    pub overlay_id: String,
-    pub workchain_id: i32,
-    pub shard_id: String,
+    pub overlay_id: [u8; 32],
+    pub workchain: i32,
+    pub shard_tag: u64,
     pub catchain_seqno: u32,
-    pub validator_subset_infos: Vec<ValidatorInfo>,
+    pub validators: Vec<PrivateOverlayEntry>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PrivateOverlayEntry {
+    pub public_key: [u8; 32],
+}
+
+struct StoredPrivateOverlayStats {
+    overlay_id: String,
+    workchain: i32,
+    shard_tag: String,
+    catchain_seqno: u32,
+    validators: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ValidatorInfo {
-    pub adnl_address: String,
-    pub known_ip_address: Option<String>,
-    pub address: Option<String>,
+    pub public_key: [u8; 32],
+    pub adnl: [u8; 32],
+    pub wallet: [u8; 32],
+    pub stake: u64,
 }
 
-impl ValidatorInfo {
-    // pub fn get_address(
-    //     node_public_key: &[u8; 32],
-    //     elector_data: &ElectorData,
-    // ) -> Result<Option<[u8; 32]>> {
-    //     let address = match elector_data.past_elections.iter().next() {
-    //         Some((_, first)) => first
-    //             .frozen_dict
-    //             .iter()
-    //             .find(|(key, _)| node_public_key == &key.inner())
-    //             .map(|(pubkey, )| pubkey.inner()),
-    //         None => None,
-    //     };
-    //
-    //     Ok(address)
-    // }
+struct StoredValidatorInfo {
+    public_key: String,
+    adnl: String,
+    wallet: String,
+    stake: u64,
 }
 
 #[derive(Default)]
@@ -77,7 +79,7 @@ pub struct MetricsState {
 
     shard_count: AtomicUsize,
     shards: parking_lot::RwLock<ShardsMap>,
-    private_overlays: parking_lot::RwLock<Vec<PrivateOverlayStats>>,
+    overlay_metrics: parking_lot::RwLock<Vec<StoredPrivateOverlayStats>>,
     mc_seq_no: AtomicU32,
     mc_utime: AtomicU32,
     mc_avg_transaction_count: AverageValueCounter,
@@ -86,6 +88,8 @@ pub struct MetricsState {
     sc_software_versions: parking_lot::RwLock<BlockVersions>,
 
     elections_state: parking_lot::RwLock<ElectionsState>,
+    validators: parking_lot::RwLock<Vec<StoredValidatorInfo>>,
+    validator_ips: parking_lot::RwLock<FxHashMap<[u8; 32], String>>,
     config_metrics: parking_lot::Mutex<Option<ConfigMetrics>>,
     engine_metrics: parking_lot::Mutex<Option<Arc<EngineMetrics>>>,
 }
@@ -126,8 +130,21 @@ impl MetricsState {
         }
     }
     pub fn update_private_overlays(&self, overlays: Vec<PrivateOverlayStats>) {
-        let mut w = self.private_overlays.write();
-        *w = overlays;
+        let overlays = overlays
+            .into_iter()
+            .map(|x| StoredPrivateOverlayStats {
+                overlay_id: hex::encode(x.overlay_id),
+                workchain: x.workchain,
+                shard_tag: make_short_shard_name(x.shard_tag),
+                catchain_seqno: x.catchain_seqno,
+                validators: x
+                    .validators
+                    .into_iter()
+                    .map(|v| hex::encode(v.public_key))
+                    .collect(),
+            })
+            .collect();
+        *self.overlay_metrics.write() = overlays;
     }
 
     pub fn update_masterchain_stats(&self, stats: MasterChainStats) {
@@ -190,6 +207,29 @@ impl MetricsState {
         self.elections_state.write().update(elector_account)
     }
 
+    pub fn update_validators(&self, validators: Vec<ValidatorInfo>) {
+        let validators = validators
+            .into_iter()
+            .map(|v| StoredValidatorInfo {
+                public_key: hex::encode(v.public_key),
+                adnl: hex::encode(v.adnl),
+                wallet: format!("-1:{}", hex::encode(v.wallet)),
+                stake: v.stake,
+            })
+            .collect();
+        *self.validators.write() = validators;
+    }
+
+    pub fn update_validator_ip(&self, public_key: &[u8; 32], ip: SocketAddrV4) {
+        self.validator_ips
+            .write()
+            .insert(*public_key, ip.to_string());
+    }
+
+    pub fn clear_validator_ips(&self) {
+        self.validator_ips.write().clear();
+    }
+
     pub fn update_config_metrics(
         &self,
         key_block_seqno: u32,
@@ -208,38 +248,15 @@ impl MetricsState {
 impl std::fmt::Display for MetricsState {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         const COLLECTION: &str = "collection";
+        const WORKCHAIN: &str = "workchain";
         const SHARD: &str = "shard";
         const SOFTWARE_VERSION: &str = "software_version";
         const ADDRESS: &str = "address";
-
-        for p_overlay in self.private_overlays.read().iter() {
-            f.begin_metric("overlay_common")
-                .label("overlay_id", &p_overlay.overlay_id)
-                .label(
-                    "shard_id",
-                    format!("{}:{}", p_overlay.workchain_id, &p_overlay.shard_id),
-                )
-                .label("catchain_seqno", p_overlay.catchain_seqno)
-                .empty()?;
-
-            for validator in &p_overlay.validator_subset_infos {
-                f.begin_metric("validator_common")
-                    .label("validator_overlay", &p_overlay.overlay_id)
-                    .label("validator_adnl", &validator.adnl_address)
-                    .label(
-                        "validator_ip",
-                        &validator
-                            .known_ip_address
-                            .clone()
-                            .unwrap_or_else(|| "-".to_string()),
-                    )
-                    .label(
-                        "validator_address",
-                        &validator.address.clone().unwrap_or_else(|| "-".to_string()),
-                    )
-                    .empty()?;
-            }
-        }
+        const OVERLAY_ID: &str = "overlay_id";
+        const CATCHAIN_SEQNO: &str = "catchain_seqno";
+        const PUBKEY: &str = "pubkey";
+        const ADNL: &str = "adnl";
+        const SOCKET_ADDR: &str = "socket_addr";
 
         f.begin_metric("frmon_aggregate")
             .label(COLLECTION, "blocks")
@@ -283,6 +300,22 @@ impl std::fmt::Display for MetricsState {
             }
         }
 
+        for overlay in self.overlay_metrics.read().iter() {
+            f.begin_metric("overlay")
+                .label(OVERLAY_ID, &overlay.overlay_id)
+                .label(WORKCHAIN, overlay.workchain)
+                .label(SHARD, &overlay.shard_tag)
+                .label(CATCHAIN_SEQNO, overlay.catchain_seqno)
+                .empty()?;
+
+            for pubkey in &overlay.validators {
+                f.begin_metric("overlay_entry")
+                    .label(OVERLAY_ID, &overlay.overlay_id)
+                    .label(PUBKEY, pubkey)
+                    .empty()?;
+            }
+        }
+
         for (version, count) in &*self.mc_software_versions.read() {
             let count = count.swap(0, Ordering::AcqRel);
             if count > 0 {
@@ -316,6 +349,21 @@ impl std::fmt::Display for MetricsState {
                 f.begin_metric("elections_elect_close")
                     .value(elections.elect_close)?;
             }
+        }
+
+        for validator in self.validators.read().iter() {
+            f.begin_metric("validator")
+                .label(PUBKEY, &validator.public_key)
+                .label(ADNL, &validator.adnl)
+                .label(ADDRESS, &validator.wallet)
+                .value(validator.stake)?;
+        }
+
+        for (pubkey, ip) in self.validator_ips.read().iter() {
+            f.begin_metric("validator_ip")
+                .label(PUBKEY, hex::encode(pubkey))
+                .label(SOCKET_ADDR, ip)
+                .empty()?;
         }
 
         if let Some(engine) = &*self.engine_metrics.lock() {
@@ -471,32 +519,7 @@ impl ElectionsState {
         }
 
         tracing::info!("updating elector state");
-        let account = match elector_account.read_account()? {
-            ton_block::Account::Account(account) => account,
-            ton_block::Account::AccountNone => return Ok(()),
-        };
-
-        let state = match account.storage.state {
-            ton_block::AccountState::AccountActive { state_init, .. } => state_init,
-            _ => return Ok(()),
-        };
-
-        let data = match state.data {
-            Some(data) => data,
-            None => return Ok(()),
-        };
-
-        let current_election: MaybeRef<CurrentElectionData> = ton_abi::TokenValue::decode_params(
-            elector_state_params(),
-            data.into(),
-            &ton_abi::contract::ABI_VERSION_2_1,
-            true,
-        )
-        .context("Failed to decode elector state data")?
-        .unpack_first()
-        .context("Failed to parse decoded elector state data")?;
-
-        if let Some(election) = current_election.0 {
+        if let Some(election) = elector::parse_current_election(elector_account)? {
             self.stakes = Some(
                 election
                     .members
@@ -516,107 +539,6 @@ impl ElectionsState {
     }
 }
 
-fn elector_state_params() -> &'static [ton_abi::Param] {
-    static ABI: OnceBox<Vec<ton_abi::Param>> = OnceBox::new();
-    ABI.get_or_init(|| {
-        Box::new(vec![ton_abi::Param::new(
-            "current_election",
-            MaybeRef::<CurrentElectionData>::param_type(),
-        )])
-    })
-}
-
-#[derive(Debug, UnpackAbi, KnownParamType)]
-pub struct ElectorData {
-    #[abi]
-    pub current_election: MaybeRef<CurrentElectionData>,
-    #[abi(param_type_with = "credits_param_type")]
-    pub credits: BTreeMap<UInt256, ton_block::Grams>,
-    #[abi(param_type_with = "past_elections_param_type")]
-    pub past_elections: BTreeMap<u32, PastElectionData>,
-    #[abi(gram)]
-    pub grams: u128,
-    #[abi(uint32)]
-    pub active_id: u32,
-
-    #[abi(uint256)]
-    pub active_hash: UInt256,
-}
-
-#[derive(Debug, UnpackAbi, KnownParamType)]
-pub struct PastElectionData {
-    #[abi(uint32)]
-    pub unfreeze_at: u32,
-    #[abi(uint32)]
-    pub stake_held: u32,
-    #[abi(uint256)]
-    pub vset_hash: UInt256,
-    #[abi(param_type_with = "frozen_dict_param_type")]
-    pub frozen_dict: BTreeMap<UInt256, FrozenStake>,
-    #[abi(gram)]
-    pub total_stake: u128,
-    #[abi(gram)]
-    pub bonuses: u128,
-    #[abi(param_type_with = "complaints_param_type")]
-    pub complaints: BTreeMap<UInt256, Complaint>,
-}
-
-#[derive(Debug, UnpackAbi, KnownParamType)]
-pub struct FrozenStake {
-    #[abi(uint256)]
-    pub addr: UInt256,
-    #[abi(uint64)]
-    pub weight: u64,
-    #[abi(gram)]
-    pub stake: u64,
-}
-
-#[derive(Debug, UnpackAbi, KnownParamType)]
-pub struct Complaint {
-    #[abi(uint8)]
-    pub _header: u8,
-    #[abi(cell)]
-    pub complaint: ton_types::Cell,
-    #[abi(param_type_with = "complaint_voters_param_type")]
-    pub voters: BTreeMap<u16, bool>,
-    #[abi(uint256)]
-    pub vset_id: UInt256,
-    #[abi]
-    pub weight_remaining: i64,
-}
-
-#[derive(Debug, UnpackAbi, KnownParamType)]
-pub struct CurrentElectionData {
-    #[abi(uint32)]
-    pub elect_at: u32,
-    #[abi(uint32)]
-    pub elect_close: u32,
-    #[abi(gram)]
-    pub min_stake: u128,
-    #[abi(gram)]
-    pub total_stake: u128,
-    #[abi]
-    pub members: BTreeMap<UInt256, ElectionMember>,
-    #[abi(bool)]
-    pub failed: bool,
-    #[abi(bool)]
-    pub finished: bool,
-}
-
-#[derive(Debug, UnpackAbi, KnownParamType)]
-pub struct ElectionMember {
-    #[abi(gram)]
-    pub msg_value: u64,
-    #[abi(uint32)]
-    pub created_at: u32,
-    #[abi(uint32)]
-    pub max_factor: u32,
-    #[abi(uint256)]
-    pub src_addr: UInt256,
-    #[abi(uint256)]
-    pub adnl_addr: UInt256,
-}
-
 fn make_short_shard_name(id: u64) -> String {
     format!("{:016x}", id).trim_end_matches('0').to_string()
 }
@@ -625,35 +547,3 @@ type ShardsMap = FxHashMap<u64, ShardState>;
 type StakesMap = FxHashMap<String, u64>;
 
 type BlockVersions = BTreeMap<u32, AtomicU32>;
-
-fn credits_param_type() -> ton_abi::ParamType {
-    ton_abi::ParamType::Map(
-        Box::new(UInt256::param_type()),
-        Box::new(ton_block::Grams::param_type()),
-    )
-}
-
-fn past_elections_param_type() -> ton_abi::ParamType {
-    ton_abi::ParamType::Map(
-        Box::new(u32::param_type()),
-        Box::new(PastElectionData::param_type()),
-    )
-}
-
-fn frozen_dict_param_type() -> ton_abi::ParamType {
-    ton_abi::ParamType::Map(
-        Box::new(UInt256::param_type()),
-        Box::new(FrozenStake::param_type()),
-    )
-}
-
-fn complaints_param_type() -> ton_abi::ParamType {
-    ton_abi::ParamType::Map(
-        Box::new(UInt256::param_type()),
-        Box::new(Complaint::param_type()),
-    )
-}
-
-fn complaint_voters_param_type() -> ton_abi::ParamType {
-    ton_abi::ParamType::Map(Box::new(u16::param_type()), Box::new(bool::param_type()))
-}

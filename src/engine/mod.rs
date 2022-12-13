@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use arc_swap::ArcSwapOption;
 
 use self::metrics::*;
 use self::ton_subscriber::*;
@@ -9,6 +8,7 @@ use crate::config::*;
 
 mod metrics;
 mod ton_subscriber;
+mod elector;
 
 pub struct Engine {
     _exporter: Arc<pomfrit::MetricsExporter>,
@@ -37,7 +37,7 @@ impl Engine {
             .context("Failed tp build node config")?;
 
         // Create and sync TON node
-        let ton_subscriber = TonSubscriber::new(metrics_state.clone(), ArcSwapOption::new(None));
+        let ton_subscriber = TonSubscriber::new(metrics_state.clone());
         let ton_engine = ton_indexer::Engine::new(
             node_config,
             global_config,

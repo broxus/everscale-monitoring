@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-use std::net::SocketAddrV4;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -10,28 +8,20 @@ use arc_swap::ArcSwapOption;
 use everscale_network::adnl::NodeIdShort;
 use everscale_network::dht;
 use everscale_network::overlay::IdFull;
-use futures::stream::{FuturesOrdered, StreamExt};
-use nekoton_abi::{KnownParamType, UnpackAbi};
-use once_cell::race::OnceBox;
+use futures::StreamExt;
+use rustc_hash::FxHashSet;
 use tl_proto::TlWrite;
-use ton_abi::TokenValue;
+use tokio::sync::watch;
 use ton_block::{
-    ConfigParams, ConsensusConfig, GetRepresentationHash, HashmapAugType, ShardAccount, ShardIdent,
+    ConfigParams, ConsensusConfig, GetRepresentationHash, HashmapAugType, ShardIdent,
     ValidatorDescr,
 };
 use ton_indexer::utils::*;
 use ton_indexer::*;
-use ton_types::{FxDashMap, UInt256};
+use ton_types::UInt256;
 
+use super::elector;
 use super::metrics::*;
-
-#[derive(Clone, Default)]
-pub struct CurrentValidatorDescription {
-    pub node_adnl_address: [u8; 32],
-    pub node_pub_key: [u8; 32],
-    pub contract_address: [u8; 32],
-    pub node_ip_address: Option<SocketAddrV4>,
-}
 
 pub struct TonSubscriber {
     metrics: Arc<MetricsState>,
@@ -39,12 +29,11 @@ pub struct TonSubscriber {
     elector_address: ton_block::MsgAddressInt,
     elector_address_hash: ton_types::UInt256,
     first_mc_block: AtomicBool,
-    dht: ArcSwapOption<dht::Node>,
-    validators: Arc<ValidatorSetStorage>,
+    validators_to_resolve: VsetTx,
 }
 
 impl TonSubscriber {
-    pub fn new(metrics: Arc<MetricsState>, dht: ArcSwapOption<dht::Node>) -> Arc<Self> {
+    pub fn new(metrics: Arc<MetricsState>) -> Arc<Self> {
         let elector_address_hash = ton_types::UInt256::from_str(
             "3333333333333333333333333333333333333333333333333333333333333333",
         )
@@ -57,20 +46,19 @@ impl TonSubscriber {
         )
         .expect("Shouldn't fail");
 
+        let (validators_to_resolve, _) = watch::channel(Default::default());
+
         Arc::new(Self {
             metrics,
             last_config: Default::default(),
             elector_address,
             elector_address_hash,
             first_mc_block: AtomicBool::new(true),
-            dht,
-            validators: Arc::new(ValidatorSetStorage::default()),
+            validators_to_resolve,
         })
     }
 
     pub async fn start(&self, engine: &Engine) -> Result<()> {
-        self.dht.store(Some(engine.network().dht().clone()));
-
         let last_key_block = engine
             .load_last_key_block()
             .await
@@ -89,11 +77,9 @@ impl TonSubscriber {
         let config = mc_extra.config().context("Key block doesn't have config")?;
         self.update_last_config(last_key_block.id(), Arc::new(config.clone()))?;
 
-        let storage = self.validators.clone();
-
-        if let Some(dht) = self.dht.load().clone() {
-            begin_polling_node_addresses(storage, dht);
-        }
+        let dht = engine.network().dht().clone();
+        let rx = self.validators_to_resolve.subscribe();
+        tokio::spawn(resolve_node_addresses(self.metrics.clone(), dht, rx));
 
         Ok(())
     }
@@ -201,6 +187,16 @@ impl TonSubscriber {
                 .get(&self.elector_address_hash)
                 .context("Failed to get elector account")?;
 
+            let is_first_mc_block = self.first_mc_block.load(Ordering::Acquire);
+            if update_elector_state || is_first_mc_block {
+                if let Some(account) = &elector_account {
+                    self.metrics
+                        .update_elections_state(account)
+                        .context("Failed to update elector state")?;
+                }
+                self.first_mc_block.store(false, Ordering::Release);
+            }
+
             let config = match mc_extra.config() {
                 Some(config) => {
                     let config = Arc::new(config.clone());
@@ -221,43 +217,35 @@ impl TonSubscriber {
                 .context("Failed to get consensus config")?;
             let validator_set = config
                 .validator_set()
+                .map(Arc::new)
                 .context("Failed to get full validator set")?;
 
-            if update_elector_state || self.first_mc_block.load(Ordering::Acquire) {
-                if let Some(account) = elector_account.as_ref() {
-                    self.metrics
-                        .update_elections_state(account)
-                        .context("Failed to update elector state")?;
+            // Update validator set only for key blocks of the first mc block
+            if block_info.key_block() || is_first_mc_block {
+                if let Some(account) = &elector_account {
+                    let elector = elector::parse_elector_data_full(account)?;
 
-                    self.first_mc_block.store(false, Ordering::Release);
-                    self.validators.clear();
-                    let elector_state = parse_elector_state(account)?;
-
-                    let validators_key_map = validator_set
-                        .list()
-                        .iter()
-                        .map(|x| (*x.public_key.as_slice(), x.adnl_addr.unwrap_or_default()))
-                        .collect::<HashMap<[u8; 32], UInt256>>();
-
-                    let past_elections = elector_state
-                        .past_elections
-                        .iter()
-                        .max_by(|(a, _), (b, _)| a.cmp(b))
-                        .filter(|(ts, _)| (**ts as u64) < broxus_util::now_sec_u64());
+                    let past_elections = elector.past_elections.range(..utime).last();
 
                     if let Some((_, past_elections)) = past_elections {
-                        for (key, stake) in past_elections.frozen_dict.iter() {
-                            let adnl_addr_opt = validators_key_map.get(&key.inner());
-                            let descr = CurrentValidatorDescription {
-                                node_adnl_address: adnl_addr_opt
-                                    .map(|x| x.inner())
-                                    .unwrap_or_default(),
-                                node_pub_key: key.inner(),
-                                contract_address: stake.addr.inner(),
-                                node_ip_address: None,
-                            };
-                            self.validators.set(key.as_slice(), descr);
+                        let mut validators = Vec::with_capacity(past_elections.frozen_dict.len());
+
+                        for validator in validator_set.list() {
+                            let info = past_elections
+                                .frozen_dict
+                                .get(&ton_types::UInt256::from(validator.public_key.as_slice()));
+
+                            validators.push(ValidatorInfo {
+                                public_key: *validator.public_key.as_slice(),
+                                adnl: validator.adnl_addr.unwrap_or_default().inner(),
+                                wallet: info.map(|x| x.addr.inner()).unwrap_or_default(),
+                                stake: info.map(|x| x.stake).unwrap_or_default(),
+                            });
                         }
+
+                        self.metrics.update_validators(validators);
+                        self.validators_to_resolve
+                            .send_replace(validator_set.clone());
                     }
                 }
             }
@@ -280,38 +268,25 @@ impl TonSubscriber {
                     &consensus_config,
                 );
 
-                let catchain_nodes = subset
-                    .iter()
-                    .map(|x| x.adnl_addr.unwrap_or_default().inner())
-                    .collect::<Vec<_>>();
+                let catchain_nodes = subset.iter().map(|x| match &x.adnl_addr {
+                    Some(x) => x.as_slice(),
+                    None => &[0; 32],
+                });
+                let private_overlay_hash = IdFull::for_catchain_overlay(&session, catchain_nodes);
 
-                let private_overlay_hash =
-                    IdFull::for_catchain_overlay(&session, catchain_nodes.iter());
-
-                let mut validator_subset_infos = Vec::new();
-                for s in subset {
-                    let description = self.validators.get(s.public_key.as_slice());
-                    if let Some(description) = description {
-                        let key = everscale_crypto::tl::PublicKey::Ed25519 {
-                            key: &description.node_pub_key,
-                        };
-
-                        let adnl = tl_proto::hash(key);
-                        let validator_info = ValidatorInfo {
-                            adnl_address: hex::encode(adnl),
-                            known_ip_address: description.node_ip_address.map(|x| x.to_string()),
-                            address: Some(hex::encode(description.contract_address)),
-                        };
-                        validator_subset_infos.push(validator_info);
-                    }
-                }
+                let validators = subset
+                    .into_iter()
+                    .map(|item| PrivateOverlayEntry {
+                        public_key: *item.public_key.as_slice(),
+                    })
+                    .collect();
 
                 let stats = PrivateOverlayStats {
-                    overlay_id: hex::encode(private_overlay_hash.compute_short_id().as_slice()),
-                    workchain_id: shard.workchain_id(),
-                    shard_id: hex::encode(shard.shard_prefix_with_tag().to_be_bytes()),
+                    overlay_id: private_overlay_hash.compute_short_id().into(),
+                    workchain: shard.workchain_id(),
+                    shard_tag: shard.shard_prefix_with_tag(),
                     catchain_seqno,
-                    validator_subset_infos,
+                    validators,
                 };
                 private_overlays.push(stats);
             }
@@ -340,86 +315,95 @@ impl TonSubscriber {
     }
 }
 
-fn begin_polling_node_addresses(validators_storage: Arc<ValidatorSetStorage>, dht: Arc<dht::Node>) {
-    tokio::spawn(async move {
-        loop {
-            let validators_storage = validators_storage.clone();
-            let validators = validators_storage.get_validators_with_empty_ips();
+async fn resolve_node_addresses(metrics: Arc<MetricsState>, dht: Arc<dht::Node>, mut rx: VsetRx) {
+    use futures::future::{select, Either};
+    use futures::stream::FuturesUnordered;
 
-            let sem = Arc::new(tokio::sync::Semaphore::new(50));
-            let mut node_addresses_ordered = FuturesOrdered::new();
+    const INTERVAL: Duration = Duration::from_secs(5);
+    const MAX_PARALLEL_REQUESTS: usize = 50;
 
-            for val in validators.iter() {
-                let sem = sem.clone();
-                let node_short_id = NodeIdShort::new(val.node_adnl_address);
+    let metrics = &metrics;
+    let dht = &dht;
 
-                let dht_clone = &dht;
-                let storage = validators_storage.as_ref();
-                let future = async move {
-                    let _g = sem.acquire().await;
-                    match &dht_clone.find_address(&node_short_id).await {
-                        Ok((address, _)) => {
-                            let new = CurrentValidatorDescription {
-                                node_adnl_address: val.node_adnl_address,
-                                node_pub_key: val.node_pub_key,
-                                contract_address: val.contract_address,
-                                node_ip_address: Some(*address),
-                            };
-                            storage.set(&val.node_pub_key, new);
-                        }
-                        Err(e) => {
-                            tracing::warn!(
-                                "Failed to find address for node: {}. Error: {:?}",
-                                hex::encode(val.node_adnl_address),
-                                e
-                            );
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(MAX_PARALLEL_REQUESTS));
+
+    let mut remaining = FxHashSet::default();
+    loop {
+        let validator_set = rx.borrow_and_update().clone();
+
+        metrics.clear_validator_ips();
+        remaining.clear();
+        for validator in validator_set.list() {
+            remaining.insert(*validator.public_key.as_slice());
+        }
+
+        let resolve = async {
+            loop {
+                let mut futures = FuturesUnordered::new();
+                for validator in validator_set.list() {
+                    let public_key = validator.public_key.as_slice();
+                    if !remaining.contains(public_key) {
+                        continue;
+                    }
+
+                    let peer_id = match &validator.adnl_addr {
+                        Some(adnl) => NodeIdShort::new(*adnl.as_slice()),
+                        None => {
+                            remaining.remove(public_key);
+                            continue;
                         }
                     };
-                };
-                node_addresses_ordered.push_back(future);
+
+                    let semaphore = semaphore.clone();
+                    futures.push(async move {
+                        let _permit = semaphore.acquire().await;
+
+                        match dht.find_address(&peer_id).await {
+                            Ok((socket_addr, _)) => {
+                                metrics.update_validator_ip(public_key, socket_addr);
+                                Some(public_key)
+                            }
+                            Err(e) => {
+                                tracing::debug!(
+                                    %peer_id,
+                                    "failed to find validator address: {e:?}",
+                                );
+                                None
+                            }
+                        }
+                    });
+                }
+
+                while let Some(public_key) = futures.next().await {
+                    if let Some(public_key) = public_key {
+                        remaining.remove(public_key);
+                    }
+                }
+
+                if remaining.is_empty() {
+                    return;
+                }
+
+                tokio::time::sleep(INTERVAL).await;
             }
+        };
+        tokio::pin!(resolve);
+        tokio::pin!(let changed = rx.changed(););
 
-            node_addresses_ordered.collect::<Vec<_>>().await;
-            tokio::time::sleep(Duration::from_secs(5)).await;
+        let res = match select(resolve, changed).await {
+            Either::Left((_, changed)) => {
+                tracing::info!("all validator addresses are resolved, waiting for a new vset");
+                changed.await
+            }
+            Either::Right((changed, _)) => {
+                tracing::warn!("cancelled validator addresses resolver due to new vset");
+                changed
+            }
+        };
+        if res.is_err() {
+            return;
         }
-    });
-}
-
-fn parse_elector_state(elector_account: &ShardAccount) -> Result<ElectorData> {
-    let account = match elector_account.read_account()? {
-        ton_block::Account::Account(account) => account,
-        ton_block::Account::AccountNone => anyhow::bail!("Failed to read elector account"),
-    };
-
-    let state = match account.storage.state {
-        ton_block::AccountState::AccountActive { state_init, .. } => state_init,
-        _ => anyhow::bail!("Elector account is not active"),
-    };
-
-    let data = match state.data {
-        Some(data) => data,
-        None => anyhow::bail!("Elector account is not active"),
-    };
-
-    fn parse_elector_data(data: ton_types::Cell) -> Result<ElectorData> {
-        static PARAM_TYPE: OnceBox<ton_abi::ParamType> = OnceBox::new();
-        let param_type = PARAM_TYPE.get_or_init(|| Box::new(ElectorData::param_type()));
-
-        let (elector_data, _) = TokenValue::read_from(
-            param_type,
-            data.into(),
-            true,
-            &ton_abi::contract::ABI_VERSION_2_1,
-            false,
-        )
-        .context("Failed to read elector data")?;
-
-        elector_data
-            .unpack()
-            .context("Failed to unpack elector data")
     }
-
-    parse_elector_data(data).context("Failed to parse decoded past elections data")
 }
 
 fn calculate_catchain_session_hash(
@@ -431,36 +415,36 @@ fn calculate_catchain_session_hash(
 ) -> [u8; 32] {
     #[derive(TlWrite)]
     #[tl(boxed, id = "validatorSession.configNew", scheme = "scheme.tl")]
-    pub struct ConfigNew {
-        pub catchain_idle_timeout: f64,
-        pub catchain_max_deps: u32,
-        pub round_candidates: u32,
-        pub next_candidate_delay: f64,
-        pub round_attempt_duration: u32,
-        pub max_round_attempts: u32,
-        pub max_block_size: u32,
-        pub max_collated_data_size: u32,
-        pub new_catchain_ids: bool,
+    struct ConfigNew {
+        catchain_idle_timeout: f64,
+        catchain_max_deps: u32,
+        round_candidates: u32,
+        next_candidate_delay: f64,
+        round_attempt_duration: u32,
+        max_round_attempts: u32,
+        max_block_size: u32,
+        max_collated_data_size: u32,
+        new_catchain_ids: bool,
     }
 
     #[derive(TlWrite)]
     #[tl(boxed, id = "validator.groupMember", scheme = "scheme.tl")]
-    pub struct GroupMember {
-        pub public_key_hash: [u8; 32],
-        pub adnl: [u8; 32],
-        pub weight: u64,
+    struct GroupMember {
+        public_key_hash: [u8; 32],
+        adnl: [u8; 32],
+        weight: u64,
     }
 
     #[derive(TlWrite)]
     #[tl(boxed, id = "validator.groupNew", scheme = "scheme.tl")]
     pub struct GroupNew {
-        pub workchain: i32,
-        pub shard: u64,
-        pub vertical_seqno: u32,
-        pub last_key_block_seqno: u32,
-        pub catchain_seqno: u32,
-        pub config_hash: [u8; 32],
-        pub members: Vec<GroupMember>,
+        workchain: i32,
+        shard: u64,
+        vertical_seqno: u32,
+        last_key_block_seqno: u32,
+        catchain_seqno: u32,
+        config_hash: [u8; 32],
+        members: Vec<GroupMember>,
     }
 
     let config = ConfigNew {
@@ -523,40 +507,14 @@ impl Subscriber for TonSubscriber {
     }
 }
 
-#[derive(Default)]
-pub struct ValidatorSetStorage {
-    validator_set: FxDashMap<[u8; 32], CurrentValidatorDescription>,
-}
-
-impl ValidatorSetStorage {
-    pub fn get(&self, public_key: &[u8; 32]) -> Option<CurrentValidatorDescription> {
-        self.validator_set.get(public_key).map(|x| x.clone())
-    }
-
-    pub fn get_validators_with_empty_ips(&self) -> Vec<CurrentValidatorDescription> {
-        self.validator_set
-            .iter()
-            .filter(|x| x.node_ip_address.is_none())
-            .map(|x| x.clone())
-            .collect::<Vec<_>>()
-    }
-
-    pub fn set(&self, public_key: &[u8; 32], node_info: CurrentValidatorDescription) {
-        self.validator_set.insert(*public_key, node_info);
-    }
-
-    pub fn clear(&self) {
-        self.validator_set.clear();
-    }
-}
-
 #[derive(thiserror::Error, Debug)]
 enum TonSubscriberError {
     #[error("Given block is not a master block")]
     NotAMasterChainBlock,
 }
 
+type VsetTx = watch::Sender<Arc<ton_block::ValidatorSet>>;
+type VsetRx = watch::Receiver<Arc<ton_block::ValidatorSet>>;
+
 const ELECTOR_UPDATE_THRESHOLD: u128 = 100_000 * ONE_EVER;
 const ONE_EVER: u128 = 1_000_000_000;
-
-//type ShardDescrTreeRef = ton_block::InRefValue<ton_block::BinTree<ton_block::ShardDescr>>;
