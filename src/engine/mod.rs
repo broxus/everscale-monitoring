@@ -6,6 +6,7 @@ use self::metrics::*;
 use self::ton_subscriber::*;
 use crate::config::*;
 
+mod elector;
 mod metrics;
 mod ton_subscriber;
 
@@ -29,14 +30,16 @@ impl Engine {
             }
         });
 
+        let node_config = config
+            .node_settings
+            .build_indexer_config()
+            .await
+            .context("Failed tp build node config")?;
+
         // Create and sync TON node
         let ton_subscriber = TonSubscriber::new(metrics_state.clone());
         let ton_engine = ton_indexer::Engine::new(
-            config
-                .node_settings
-                .build_indexer_config()
-                .await
-                .context("Failed to build node config")?,
+            node_config,
             global_config,
             vec![ton_subscriber.clone() as Arc<dyn ton_indexer::Subscriber>],
         )
@@ -45,7 +48,6 @@ impl Engine {
 
         // Set engine metrics object
         metrics_state.set_engine_metrics(ton_engine.metrics());
-
         // Done
         Ok(Self {
             _exporter: exporter,
@@ -55,15 +57,15 @@ impl Engine {
     }
 
     pub async fn start(&self) -> Result<()> {
-        self.ton_engine
-            .start()
-            .await
-            .context("Failed to start TON node")?;
-
         self.ton_subscriber
             .start(&self.ton_engine)
             .await
             .context("Failed to init config metrics")?;
+
+        self.ton_engine
+            .start()
+            .await
+            .context("Failed to start TON node")?;
 
         Ok(())
     }
