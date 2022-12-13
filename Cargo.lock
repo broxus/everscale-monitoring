@@ -995,6 +995,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "argh",
+ "atty",
  "bincode",
  "broxus-util",
  "csv",

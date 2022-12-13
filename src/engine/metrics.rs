@@ -258,6 +258,11 @@ impl std::fmt::Display for MetricsState {
         const ADNL: &str = "adnl";
         const SOCKET_ADDR: &str = "socket_addr";
 
+        let mc_utime = self.mc_utime.load(Ordering::Acquire);
+        if mc_utime == 0 {
+            return Ok(());
+        }
+
         f.begin_metric("frmon_aggregate")
             .label(COLLECTION, "blocks")
             .value(self.blocks_total.load(Ordering::Acquire))?;
@@ -270,19 +275,16 @@ impl std::fmt::Display for MetricsState {
             .label(COLLECTION, "transactions")
             .value(self.transactions_total.load(Ordering::Acquire))?;
 
-        let mc_utime = self.mc_utime.load(Ordering::Acquire);
-        if mc_utime > 0 {
-            f.begin_metric("frmon_mc_shards")
-                .value(self.shard_count.load(Ordering::Acquire))?;
+        f.begin_metric("frmon_mc_shards")
+            .value(self.shard_count.load(Ordering::Acquire))?;
 
-            f.begin_metric("frmon_mc_seqno")
-                .value(self.mc_seq_no.load(Ordering::Acquire))?;
+        f.begin_metric("frmon_mc_seqno")
+            .value(self.mc_seq_no.load(Ordering::Acquire))?;
 
-            f.begin_metric("frmon_mc_utime").value(mc_utime)?;
+        f.begin_metric("frmon_mc_utime").value(mc_utime)?;
 
-            f.begin_metric("frmon_mc_avgtrc")
-                .value(self.mc_avg_transaction_count.reset().unwrap_or_default())?;
-        }
+        f.begin_metric("frmon_mc_avgtrc")
+            .value(self.mc_avg_transaction_count.reset().unwrap_or_default())?;
 
         for shard in self.shards.read().values() {
             if let Some((seqno, utime)) = shard.load_seqno_and_utime() {

@@ -6,9 +6,9 @@ use self::metrics::*;
 use self::ton_subscriber::*;
 use crate::config::*;
 
+mod elector;
 mod metrics;
 mod ton_subscriber;
-mod elector;
 
 pub struct Engine {
     _exporter: Arc<pomfrit::MetricsExporter>,
@@ -57,15 +57,15 @@ impl Engine {
     }
 
     pub async fn start(&self) -> Result<()> {
-        self.ton_engine
-            .start()
-            .await
-            .context("Failed to start TON node")?;
-
         self.ton_subscriber
             .start(&self.ton_engine)
             .await
             .context("Failed to init config metrics")?;
+
+        self.ton_engine
+            .start()
+            .await
+            .context("Failed to start TON node")?;
 
         Ok(())
     }
