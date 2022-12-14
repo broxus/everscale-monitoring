@@ -399,6 +399,8 @@ impl std::fmt::Display for MetricsState {
                 .value(persistent_state.seqno)?;
             f.begin_metric("persistent_state_utime")
                 .value(persistent_state.gen_utime)?;
+            f.begin_metric("persistent_state_time_diff")
+                .value(now().saturating_sub(persistent_state.gen_utime))?;
         }
 
         if let Some(config) = &*self.config_metrics.lock() {
