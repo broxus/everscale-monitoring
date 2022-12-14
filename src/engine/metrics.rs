@@ -238,6 +238,7 @@ impl MetricsState {
         let mut data = self.config_metrics.lock();
         let data = data.get_or_insert_with(Default::default);
         if key_block_seqno > data.key_block_seqno {
+            data.key_block_seqno = key_block_seqno;
             data.update(config)
         } else {
             Ok(())
@@ -440,10 +441,47 @@ impl ConfigMetrics {
 
 impl std::fmt::Display for ConfigMetrics {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.begin_metric("key_block_seqno")
+            .value(self.key_block_seqno)?;
         f.begin_metric("config_global_version")
             .value(self.global_version)?;
         f.begin_metric("config_global_capabilities")
             .value(self.global_capabilities)?;
+
+        macro_rules! export_capabilities {
+            ($($bit:literal => $name:literal),*$(,)?) => {
+                $(
+                    f.begin_metric("config_global_capability")
+                        .label("capability", $name)
+                        .label("bit", ($bit as u32).trailing_zeros())
+                        .value(u8::from(self.global_capabilities & $bit != 0))?;
+                )*
+            };
+        }
+
+        export_capabilities! {
+            0x000001 => "CapIhrEnabled",
+            0x000002 => "CapCreateStatsEnabled",
+            0x000004 => "CapBounceMsgBody",
+            0x000008 => "CapReportVersion",
+            0x000010 => "CapSplitMergeTransactions",
+            0x000020 => "CapShortDequeue",
+            0x000040 => "CapMbppEnabled",
+            0x000080 => "CapFastStorageStat",
+            0x000100 => "CapInitCodeHash",
+            0x000200 => "CapOffHypercube",
+            0x000400 => "CapMycode",
+            0x000800 => "CapSetLibCode",
+            0x001000 => "CapFixTupleIndexBug",
+            0x002000 => "CapRemp",
+            0x004000 => "CapDelections",
+            0x010000 => "CapFullBodyInBounced",
+            0x020000 => "CapStorageFeeToTvm",
+            0x040000 => "CapCopyleft",
+            0x080000 => "CapIndexAccounts",
+            0x200000 => "CapsTvmBugfixes2022",
+            0x400000 => "CapWc2WcQueueUpdates",
+        }
 
         f.begin_metric("config_max_validators")
             .value(self.max_validators)?;
