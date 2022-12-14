@@ -428,6 +428,9 @@ struct ConfigMetrics {
     max_stake: u64,
     min_total_stake: u64,
     max_stake_factor: u32,
+
+    min_split: u8,
+    max_split: u8,
 }
 
 impl ConfigMetrics {
@@ -437,6 +440,11 @@ impl ConfigMetrics {
         let stakes_config = match config.config(17)? {
             Some(ton_block::ConfigParamEnum::ConfigParam17(param)) => param,
             _ => return Err(anyhow!("Failed to get config param 17")),
+        };
+
+        if let Some(workchain) = config.workchains()?.get(&0)? {
+            self.min_split = workchain.min_split();
+            self.max_split = workchain.max_split();
         };
 
         self.global_version = version.version;
@@ -516,6 +524,13 @@ impl std::fmt::Display for ConfigMetrics {
             .value(self.min_total_stake)?;
         f.begin_metric("config_max_stake_factor")
             .value(self.max_stake_factor)?;
+
+        f.begin_metric("workchain_min_split")
+            .label("workchain", 0)
+            .value(self.min_split)?;
+        f.begin_metric("workchain_max_split")
+            .label("workchain", 0)
+            .value(self.max_split)?;
 
         Ok(())
     }
