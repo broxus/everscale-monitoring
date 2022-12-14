@@ -102,6 +102,49 @@
               "showLegend": true,
               "style": {
                 "color": {
+                  "fixed": "dark-purple"
+                },
+                "opacity": 0.4,
+                "rotation": {
+                  "fixed": 0,
+                  "max": 360,
+                  "min": -360,
+                  "mode": "mod"
+                },
+                "size": {
+                  "fixed": 5,
+                  "max": 15,
+                  "min": 2
+                },
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg",
+                  "mode": "fixed"
+                },
+                "textConfig": {
+                  "fontSize": 12,
+                  "offsetX": 0,
+                  "offsetY": 0,
+                  "textAlign": "center",
+                  "textBaseline": "middle"
+                }
+              }
+            },
+            "filterData": {
+              "id": "byRefId",
+              "options": "B"
+            },
+            "location": {
+              "mode": "coords"
+            },
+            "name": "Other",
+            "tooltip": true,
+            "type": "markers"
+          },
+          {
+            "config": {
+              "showLegend": true,
+              "style": {
+                "color": {
                   "fixed": "dark-green"
                 },
                 "opacity": 0.4,
@@ -129,10 +172,14 @@
                 }
               }
             },
+            "filterData": {
+              "id": "byRefId",
+              "options": "A"
+            },
             "location": {
               "mode": "coords"
             },
-            "name": "Layer 1",
+            "name": "Validators",
             "type": "markers"
           }
         ],
@@ -153,14 +200,30 @@
             "type": "prometheus",
             "uid": "_IH4JL07z"
           },
+          "editorMode": "code",
           "exemplar": false,
-          "expr": "label_replace(\nlabel_replace(\n  adnl_peer,\n  \"latitude\", \"$1\", \"adjusted_latitude\", \"(.+)\"),\n  \"longitude\", \"$1\", \"adjusted_longitude\", \"(.+)\")",
+          "expr": "label_replace(\nlabel_replace(\n  label_join(adnl_peer, \"socket_addr\", \":\", \"ip\", \"port\") * on(socket_addr) group_left validator_ip,\n  \"latitude\", \"$1\", \"adjusted_latitude\", \"(.+)\"),\n  \"longitude\", \"$1\", \"adjusted_longitude\", \"(.+)\")",
           "format": "table",
           "hide": false,
           "instant": true,
           "interval": "",
           "legendFormat": "",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "label_replace(\nlabel_replace(\n  label_join(adnl_peer, \"socket_addr\", \":\", \"ip\", \"port\") unless label_join(adnl_peer, \"socket_addr\", \":\", \"ip\", \"port\") * on(socket_addr) group_left validator_ip,\n  \"latitude\", \"$1\", \"adjusted_latitude\", \"(.+)\"),\n  \"longitude\", \"$1\", \"adjusted_longitude\", \"(.+)\")",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
         }
       ],
       "title": "ADNL Peers",
@@ -170,8 +233,9 @@
           "options": {
             "excludeByName": {
               "Time": true,
-              "Value": false,
+              "Value": true,
               "Value #A": true,
+              "Value #B": true,
               "__name__": true,
               "adjusted_latitude": true,
               "adjusted_longitude": true,
@@ -179,7 +243,8 @@
               "instance": true,
               "ip": false,
               "job": true,
-              "port": false
+              "port": false,
+              "socket_addr": true
             },
             "indexByName": {
               "Time": 0,
@@ -1733,7 +1798,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1903,7 +1969,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2073,7 +2140,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2245,7 +2313,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2416,7 +2485,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2553,7 +2623,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "transparent"
+                "color": "transparent",
+                "value": null
               },
               {
                 "color": "red",
@@ -2698,7 +2769,7 @@
           "refId": "A"
         }
       ],
-      "title": "Elections monitoring",
+      "title": "Validators",
       "type": "text"
     },
     {
@@ -2749,7 +2820,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2924,8 +2996,8 @@
         ]
       },
       "gridPos": {
-        "h": 10,
-        "w": 24,
+        "h": 9,
+        "w": 12,
         "x": 0,
         "y": 59
       },
@@ -2991,6 +3063,512 @@
       ],
       "title": "State of elections",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "_IH4JL07z"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "WC"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 71
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "shard"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 88
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Overlay ID"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 887
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 59
+      },
+      "id": 57,
+      "options": {
+        "footer": {
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "9.1.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "(\n    count(overlay_entry) by (overlay_id)\n) \n    + on(overlay_id) group_right(catchain_seqno) \n(\n    0 * label_replace(label_join(overlay, \"shard_full\", \":\", \"workchain\", \"shard\"), \"shard_full\", \"$1...\", \"shard_full\", \"(.*)\")\n)",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Private Overlays",
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "field": "workchain"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": false,
+              "__name__": true,
+              "instance": true,
+              "job": true,
+              "shard": true,
+              "workchain": true
+            },
+            "indexByName": {
+              "Time": 0,
+              "Value": 7,
+              "instance": 5,
+              "job": 6,
+              "overlay_id": 4,
+              "shard": 3,
+              "shard_full": 2,
+              "workchain": 1
+            },
+            "renameByName": {
+              "Value": "Nodes",
+              "catchain_seqno": "Catchain Seqno",
+              "overlay_id": "Overlay ID",
+              "shard": "",
+              "shard_full": "Shard",
+              "workchain": "WC"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "_IH4JL07z"
+      },
+      "description": "",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "displayMode": "auto",
+            "filterable": false,
+            "inspect": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "MC"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 67
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "SC"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 72
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "MC"
+            },
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "false": {
+                        "color": "transparent",
+                        "index": 0,
+                        "text": "-"
+                      },
+                      "true": {
+                        "color": "dark-green",
+                        "index": 1,
+                        "text": "-1:8..."
+                      }
+                    },
+                    "type": "value"
+                  }
+                ]
+              },
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "IP"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background-solid"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "match": "empty",
+                      "result": {
+                        "color": "red",
+                        "index": 0,
+                        "text": "NOT FOUND"
+                      }
+                    },
+                    "type": "special"
+                  },
+                  {
+                    "options": {
+                      "pattern": ".*",
+                      "result": {
+                        "color": "transparent",
+                        "index": 1
+                      }
+                    },
+                    "type": "regex"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "SC"
+            },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "options": {
+                      "match": "empty",
+                      "result": {
+                        "color": "transparent",
+                        "index": 0
+                      }
+                    },
+                    "type": "special"
+                  },
+                  {
+                    "options": {
+                      "pattern": ".*",
+                      "result": {
+                        "color": "light-blue",
+                        "index": 1
+                      }
+                    },
+                    "type": "regex"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Stake"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "currencyUSD"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 15,
+        "w": 24,
+        "x": 0,
+        "y": 68
+      },
+      "id": 59,
+      "options": {
+        "footer": {
+          "enablePagination": false,
+          "fields": "",
+          "reducer": [
+            "count"
+          ],
+          "show": false
+        },
+        "frameIndex": 1,
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "9.1.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "((\n    validator / 1000000000\n) + on(pubkey) group_left(socket_addr) (0 * validator_ip))\nor on(pubkey) (validator / 1000000000)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "((validator * 0) + on(pubkey) (count by(pubkey) ((overlay_entry * on(overlay_id) group_left overlay{workchain=\"-1\"}) and on(pubkey) (overlay_entry * 0)))) or on(pubkey) (validator * 0)",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "interval": "",
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "(validator + on(pubkey) group_left(shard_full) overlay_entry * on(overlay_id) group_left(shard_full) label_replace(overlay{workchain=\"0\"}, \"shard_full\", \"0:$1...\", \"shard\", \"(.*)\")) or on(pubkey) validator",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "C"
+        }
+      ],
+      "title": "Current Validators",
+      "transformations": [
+        {
+          "id": "seriesToColumns",
+          "options": {
+            "byField": "pubkey"
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Time 1": true,
+              "Time 2": true,
+              "Time 3": true,
+              "Value #A": false,
+              "Value #C": true,
+              "__name__": true,
+              "address 1": false,
+              "address 2": true,
+              "address 3": true,
+              "adnl 1": false,
+              "adnl 2": true,
+              "adnl 3": true,
+              "instance": true,
+              "instance 1": true,
+              "instance 2": true,
+              "instance 3": true,
+              "job": true,
+              "job 1": true,
+              "job 2": true,
+              "job 3": true,
+              "shard": true
+            },
+            "indexByName": {
+              "Time 1": 2,
+              "Time 2": 7,
+              "Time 3": 15,
+              "Value #A": 14,
+              "Value #B": 12,
+              "Value #C": 21,
+              "__name__": 20,
+              "address 1": 0,
+              "address 2": 8,
+              "address 3": 16,
+              "adnl 1": 3,
+              "adnl 2": 9,
+              "adnl 3": 17,
+              "instance 1": 4,
+              "instance 2": 10,
+              "instance 3": 18,
+              "job 1": 5,
+              "job 2": 11,
+              "job 3": 19,
+              "pubkey": 1,
+              "shard_full": 13,
+              "socket_addr": 6
+            },
+            "renameByName": {
+              "Time 3": "",
+              "Value": "Stake",
+              "Value #A": "Stake",
+              "Value #B": "MC",
+              "__name__": "",
+              "address": "Wallet",
+              "address 1": "Wallet",
+              "adnl": "ADNL",
+              "adnl 1": "ADNL",
+              "instance 3": "",
+              "job 3": "",
+              "pubkey": "Pubkey",
+              "pubkey 1": "",
+              "shard": "",
+              "shard_full": "SC",
+              "socket_addr": "IP"
+            }
+          }
+        },
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": true,
+                "field": "Stake"
+              }
+            ]
+          }
+        },
+        {
+          "id": "convertFieldType",
+          "options": {
+            "conversions": [
+              {
+                "destinationType": "boolean",
+                "targetField": "MC"
+              }
+            ],
+            "fields": {}
+          }
+        }
+      ],
+      "type": "table"
     }
   ],
   "refresh": false,
@@ -3008,6 +3586,6 @@
   "timezone": "",
   "title": "Mainnet monitoring",
   "uid": "y8TkYMO7k",
-  "version": 50,
+  "version": 55,
   "weekStart": ""
 }
