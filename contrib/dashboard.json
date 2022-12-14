@@ -519,6 +519,7 @@
             "type": "prometheus",
             "uid": "_IH4JL07z"
           },
+          "editorMode": "code",
           "exemplar": true,
           "expr": "sum by (software_version) (increase(frmon_mc_software_version[5m])) / ignoring(software_version) group_left sum(increase(frmon_mc_software_version[5m]))",
           "instant": false,
@@ -767,11 +768,789 @@
         "type": "prometheus",
         "uid": "_IH4JL07z"
       },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 19
+      },
+      "id": 61,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.1.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "key_block_seqno",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Last Key Block Seqno",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "_IH4JL07z"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "currencyUSD"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Min Stake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Max Stake"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #C"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Min Total Stake"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 3,
+        "y": 19
+      },
+      "id": 64,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "pluginVersion": "9.1.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "config_min_stake / 1000000000",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "config_max_stake / 1000000000",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "config_min_total_stake / 1000000000",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "C"
+        }
+      ],
+      "transformations": [],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "_IH4JL07z"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 5,
+        "x": 9,
+        "y": 19
+      },
+      "id": 70,
+      "options": {
+        "displayLabels": [
+          "name",
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "list",
+          "placement": "right",
+          "showLegend": true,
+          "values": [
+            "percent"
+          ]
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "sum by (software_version) (increase(frmon_mc_software_version[6h])) / ignoring(software_version) group_left sum(increase(frmon_mc_software_version[6h]))",
+          "format": "time_series",
+          "instant": true,
+          "legendFormat": "{{software_version}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Node Versions 6h",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "_IH4JL07z"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "transparent",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 10,
+        "x": 14,
+        "y": 19
+      },
+      "id": 68,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [],
+          "fields": "/^Value$/",
+          "values": true
+        },
+        "text": {},
+        "textMode": "name"
+      },
+      "pluginVersion": "9.1.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "config_global_capability",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "{{capability}}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "transformations": [
+        {
+          "id": "sortBy",
+          "options": {
+            "fields": {},
+            "sort": [
+              {
+                "desc": false,
+                "field": "bit"
+              }
+            ]
+          }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": false,
+              "__name__": true,
+              "bit": true,
+              "instance": true,
+              "job": true
+            },
+            "indexByName": {},
+            "renameByName": {}
+          }
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "_IH4JL07z"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Persistent State Seqno"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "dtdurations"
+              },
+              {
+                "id": "displayName",
+                "value": "Time since the last PS"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "#676767",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 3,
+        "x": 0,
+        "y": 23
+      },
+      "id": 65,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.1.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "persistent_state_seqno",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "persistent_state_time_diff",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "_IH4JL07z"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Min Validators"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Max MC Validators"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #C"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Max Validators"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 3,
+        "y": 23
+      },
+      "id": 63,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "pluginVersion": "9.1.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "config_min_validators",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "config_max_main_validators",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "config_max_validators",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "C"
+        }
+      ],
+      "transformations": [],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "_IH4JL07z"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 2,
+        "x": 3,
+        "y": 27
+      },
+      "id": 62,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "9.1.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "config_global_version",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "Global Version",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "_IH4JL07z"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "none"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Min Shards"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Value #B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Max Shards"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 5,
+        "y": 27
+      },
+      "id": 66,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "pluginVersion": "9.1.5",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "2 ^ workchain_min_split",
+          "format": "table",
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "_IH4JL07z"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "2 ^ workchain_max_split",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "__auto",
+          "range": false,
+          "refId": "B"
+        }
+      ],
+      "transformations": [],
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "_IH4JL07z"
+      },
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 19
+        "y": 31
       },
       "id": 47,
       "options": {
@@ -931,7 +1710,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 20
+        "y": 32
       },
       "id": 4,
       "options": {
@@ -1103,7 +1882,7 @@
         "h": 9,
         "w": 8,
         "x": 8,
-        "y": 20
+        "y": 32
       },
       "id": 5,
       "options": {
@@ -1275,7 +2054,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 20
+        "y": 32
       },
       "id": 6,
       "options": {
@@ -1316,7 +2095,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 29
+        "y": 41
       },
       "id": 2,
       "options": {
@@ -1477,7 +2256,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 30
+        "y": 42
       },
       "id": 8,
       "options": {
@@ -1575,7 +2354,7 @@
         "h": 9,
         "w": 8,
         "x": 8,
-        "y": 30
+        "y": 42
       },
       "id": 11,
       "options": {
@@ -1672,7 +2451,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 30
+        "y": 42
       },
       "id": 13,
       "options": {
@@ -1729,7 +2508,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 39
+        "y": 51
       },
       "id": 14,
       "options": {
@@ -1891,7 +2670,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 40
+        "y": 52
       },
       "id": 18,
       "options": {
@@ -2062,7 +2841,7 @@
         "h": 9,
         "w": 8,
         "x": 8,
-        "y": 40
+        "y": 52
       },
       "id": 20,
       "options": {
@@ -2233,7 +3012,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 40
+        "y": 52
       },
       "id": 22,
       "options": {
@@ -2406,7 +3185,7 @@
         "h": 9,
         "w": 8,
         "x": 0,
-        "y": 49
+        "y": 61
       },
       "id": 16,
       "options": {
@@ -2533,7 +3312,7 @@
         "h": 9,
         "w": 8,
         "x": 8,
-        "y": 49
+        "y": 61
       },
       "id": 24,
       "options": {
@@ -2686,7 +3465,7 @@
         "h": 9,
         "w": 8,
         "x": 16,
-        "y": 49
+        "y": 61
       },
       "id": 26,
       "options": {
@@ -2752,7 +3531,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 58
+        "y": 70
       },
       "id": 27,
       "options": {
@@ -2999,7 +3778,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 59
+        "y": 71
       },
       "id": 29,
       "options": {
@@ -3137,7 +3916,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 59
+        "y": 71
       },
       "id": 57,
       "options": {
@@ -3399,7 +4178,7 @@
         "h": 15,
         "w": 24,
         "x": 0,
-        "y": 68
+        "y": 80
       },
       "id": 59,
       "options": {
@@ -3586,6 +4365,6 @@
   "timezone": "",
   "title": "Mainnet monitoring",
   "uid": "y8TkYMO7k",
-  "version": 55,
+  "version": 60,
   "weekStart": ""
 }
