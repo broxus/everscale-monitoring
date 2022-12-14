@@ -308,13 +308,13 @@ impl std::fmt::Display for MetricsState {
                 .label(WORKCHAIN, overlay.workchain)
                 .label(SHARD, &overlay.shard_tag)
                 .label(CATCHAIN_SEQNO, overlay.catchain_seqno)
-                .empty()?;
+                .value(1)?;
 
             for pubkey in &overlay.validators {
                 f.begin_metric("overlay_entry")
                     .label(OVERLAY_ID, &overlay.overlay_id)
                     .label(PUBKEY, pubkey)
-                    .empty()?;
+                    .value(1)?;
             }
         }
 
@@ -365,7 +365,7 @@ impl std::fmt::Display for MetricsState {
             f.begin_metric("validator_ip")
                 .label(PUBKEY, hex::encode(pubkey))
                 .label(SOCKET_ADDR, ip)
-                .empty()?;
+                .value(1)?;
         }
 
         if let Some(engine) = &*self.engine_metrics.lock() {
