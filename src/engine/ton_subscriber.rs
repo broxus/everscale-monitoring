@@ -74,7 +74,11 @@ impl TonSubscriber {
                     .ok_or(TonSubscriberError::NotAMasterChainBlock)?;
 
                 let config = mc_extra.config().context("Key block doesn't have config")?;
-                self.update_last_config(last_key_block.id(), Arc::new(config.clone()))?;
+                self.metrics
+                    .update_config_metrics(last_key_block.id().seq_no, config)
+                    .context("Failed to update config metrics")?;
+                self.last_config
+                    .compare_and_swap(&None::<Arc<_>>, Some(Arc::new(config.clone())));
             }
             Err(_) => tracing::warn!("last key block not found"),
         }
@@ -94,8 +98,7 @@ impl TonSubscriber {
         self.metrics
             .update_config_metrics(block_id.seq_no, config.as_ref())
             .context("Failed to update config metrics")?;
-        self.last_config
-            .compare_and_swap(&None::<Arc<_>>, Some(config));
+        self.last_config.store(Some(config));
         Ok(())
     }
 
