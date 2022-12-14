@@ -102,7 +102,12 @@ impl TonSubscriber {
         Ok(())
     }
 
-    async fn update_metrics(&self, block: &BlockStuff, state: &ShardStateStuff) -> Result<()> {
+    async fn update_metrics(
+        &self,
+        engine: &Engine,
+        block: &BlockStuff,
+        state: &ShardStateStuff,
+    ) -> Result<()> {
         // Prepare context
         let block_id = block.id();
         let block = block.block();
@@ -185,6 +190,13 @@ impl TonSubscriber {
                 utime,
                 transaction_count,
             });
+
+            if let Some(persistent_state) = engine.current_persistent_state_meta() {
+                self.metrics.update_persistent_state(PersistentStateInfo {
+                    seqno: persistent_state.0,
+                    gen_utime: persistent_state.1.gen_utime(),
+                })
+            }
 
             let elector_account = state
                 .state()
@@ -506,7 +518,10 @@ impl Subscriber for TonSubscriber {
             None => return Ok(()),
         };
 
-        if let Err(e) = self.update_metrics(ctx.block_stuff(), state).await {
+        if let Err(e) = self
+            .update_metrics(ctx.engine(), ctx.block_stuff(), state)
+            .await
+        {
             tracing::error!("failed to update metrics: {e:?}");
         }
         Ok(())

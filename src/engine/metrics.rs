@@ -71,6 +71,12 @@ struct StoredValidatorInfo {
     stake: u64,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct PersistentStateInfo {
+    pub seqno: u32,
+    pub gen_utime: u32,
+}
+
 #[derive(Default)]
 pub struct MetricsState {
     blocks_total: AtomicU32,
@@ -92,6 +98,7 @@ pub struct MetricsState {
     validator_ips: parking_lot::RwLock<FxHashMap<[u8; 32], String>>,
     config_metrics: parking_lot::Mutex<Option<ConfigMetrics>>,
     engine_metrics: parking_lot::Mutex<Option<Arc<EngineMetrics>>>,
+    persistent_state: parking_lot::Mutex<Option<PersistentStateInfo>>,
 }
 
 impl MetricsState {
@@ -244,6 +251,10 @@ impl MetricsState {
             Ok(())
         }
     }
+
+    pub fn update_persistent_state(&self, info: PersistentStateInfo) {
+        *self.persistent_state.lock() = Some(info);
+    }
 }
 
 impl std::fmt::Display for MetricsState {
@@ -381,6 +392,13 @@ impl std::fmt::Display for MetricsState {
 
             f.begin_metric("frmon_mc_shard_time_diff")
                 .value(engine.shard_client_time_diff.load(Ordering::Acquire))?;
+        }
+
+        if let Some(persistent_state) = &*self.persistent_state.lock() {
+            f.begin_metric("persistent_state_seqno")
+                .value(persistent_state.seqno)?;
+            f.begin_metric("persistent_state_utime")
+                .value(persistent_state.gen_utime)?;
         }
 
         if let Some(config) = &*self.config_metrics.lock() {
