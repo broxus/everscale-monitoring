@@ -528,7 +528,7 @@
           "refId": "A"
         }
       ],
-      "title": "MC Software Versions",
+      "title": "MC Block Versions",
       "type": "timeseries"
     },
     {
@@ -760,7 +760,7 @@
           "refId": "A"
         }
       ],
-      "title": "SC Software Versions",
+      "title": "SC Block Versions",
       "type": "timeseries"
     },
     {
@@ -847,7 +847,7 @@
               }
             ]
           },
-          "unit": "currencyUSD"
+          "unit": "currency:Ē"
         },
         "overrides": [
           {
@@ -1029,7 +1029,7 @@
           "refId": "A"
         }
       ],
-      "title": "Node Versions 6h",
+      "title": "Block Versions 6h",
       "type": "piechart"
     },
     {
@@ -1132,6 +1132,7 @@
         "type": "prometheus",
         "uid": "_IH4JL07z"
       },
+      "description": "The sequence number of the last persistent state",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2163,8 +2164,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": null
+                "color": "red"
               },
               {
                 "color": "transparent",
@@ -2322,8 +2322,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "transparent",
-                "value": null
+                "color": "transparent"
               },
               {
                 "color": "dark-green",
@@ -2411,8 +2410,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "transparent",
-                "value": null
+                "color": "transparent"
               },
               {
                 "color": "dark-green",
@@ -2577,8 +2575,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2748,8 +2745,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -2919,8 +2915,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -3092,8 +3087,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -3264,8 +3258,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -3402,8 +3395,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "transparent",
-                "value": null
+                "color": "transparent"
               },
               {
                 "color": "red",
@@ -3599,8 +3591,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -3863,8 +3854,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -4017,8 +4007,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -4168,7 +4157,7 @@
             "properties": [
               {
                 "id": "unit",
-                "value": "currencyUSD"
+                "value": "currency:Ē"
               }
             ]
           }
@@ -4365,6 +4354,6 @@
   "timezone": "",
   "title": "Mainnet monitoring",
   "uid": "y8TkYMO7k",
-  "version": 60,
+  "version": 65,
   "weekStart": ""
 }
