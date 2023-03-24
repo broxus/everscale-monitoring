@@ -97,7 +97,7 @@ impl CmdResolve {
 
         db.with_cfs(|mut resolver| {
             for node in nodes {
-                let info = resolver.find(node.into())?;
+                let info = resolver.find(node)?;
                 write!(temp_file, "{}", info)?;
             }
             Ok(())
