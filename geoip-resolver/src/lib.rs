@@ -45,12 +45,16 @@ pub async fn search_nodes(addr: SocketAddrV4, global_config: GlobalConfig) -> Re
 
     // Search overlay peers
     let mut nodes = NodeIps::default();
-    scan_overlay(&dht, &mc_overlay_id, &mut nodes)
-        .await
-        .context("Failed to scan overlay -1")?;
-    scan_overlay(&dht, &sc_overlay_id, &mut nodes)
-        .await
-        .context("Failed to scan overlay 0")?;
+    for _ in 0..10 {
+        scan_overlay(&dht, &mc_overlay_id, &mut nodes)
+            .await
+            .context("Failed to scan overlay -1")?;
+        scan_overlay(&dht, &sc_overlay_id, &mut nodes)
+            .await
+            .context("Failed to scan overlay 0")?;
+
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+    }
 
     // Done
     Ok(nodes)

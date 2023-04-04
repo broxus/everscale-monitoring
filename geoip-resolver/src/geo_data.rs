@@ -1,6 +1,7 @@
 use std::io::Read;
 use std::net::SocketAddrV4;
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use indicatif::ProgressBar;
@@ -48,7 +49,7 @@ impl GeoDataImporter {
             } = item?;
 
             self.db.0.put_cf(
-                asn_cf,
+                &asn_cf,
                 ip_from.to_be_bytes(),
                 bincode::serialize(&StoredAsnRecord { mask, asn, name }).expect("Shouldn't fail"),
             )?;
@@ -84,7 +85,7 @@ impl GeoDataImporter {
             } = item?;
 
             self.db.0.put_cf(
-                location_cf,
+                &location_cf,
                 ip_from.to_be_bytes(),
                 bincode::serialize(&StoredLocationRecord {
                     country_code,
@@ -123,11 +124,11 @@ impl GeoDataReader {
     {
         let snapshot = self.db.0.snapshot();
         let location_iter = snapshot.raw_iterator_cf_opt(
-            self.db.get_cf(CF_LOCATIONS)?,
+            &self.db.get_cf(CF_LOCATIONS)?,
             rocksdb::ReadOptions::default(),
         );
         let asn_iter =
-            snapshot.raw_iterator_cf_opt(self.db.get_cf(CF_ASN)?, rocksdb::ReadOptions::default());
+            snapshot.raw_iterator_cf_opt(&self.db.get_cf(CF_ASN)?, rocksdb::ReadOptions::default());
 
         f(Resolver {
             cache: LocationCache::default(),
@@ -147,13 +148,13 @@ impl Resolver<'_> {
     pub fn find(&mut self, address: SocketAddrV4) -> Result<AddressInfo> {
         let ip = u32::from(*address.ip()).to_be_bytes();
 
-        self.location_iter.seek_for_prev(&ip);
+        self.location_iter.seek_for_prev(ip);
         let location: Option<StoredLocationRecord> = match self.location_iter.value() {
             Some(data) => Some(bincode::deserialize(data)?),
             None => None,
         };
 
-        self.asn_iter.seek_for_prev(&ip);
+        self.asn_iter.seek_for_prev(ip);
         let other: Option<StoredAsnRecord> = match self.asn_iter.value() {
             Some(data) => Some(bincode::deserialize(data)?),
             None => None,
@@ -176,7 +177,7 @@ impl Resolver<'_> {
 struct GeoDb(rocksdb::DB);
 
 impl GeoDb {
-    fn get_cf(&'_ self, name: &'static str) -> Result<&'_ rocksdb::ColumnFamily> {
+    fn get_cf(&'_ self, name: &'static str) -> Result<Arc<rocksdb::BoundColumnFamily>> {
         self.0
             .cf_handle(name)
             .with_context(|| format!("{} column family not found", name))
