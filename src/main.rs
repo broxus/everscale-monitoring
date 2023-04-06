@@ -1,16 +1,24 @@
 use anyhow::{Context, Result};
 use everscale_monitoring::config::*;
 use everscale_monitoring::engine::*;
+use is_terminal::IsTerminal;
+use tokio_util::sync::CancellationToken;
+use tracing_subscriber::EnvFilter;
 
 #[global_allocator]
 static GLOBAL: broxus_util::alloc::Allocator = broxus_util::alloc::allocator();
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    if atty::is(atty::Stream::Stdout) {
-        tracing_subscriber::fmt::init();
+    let logger = tracing_subscriber::fmt().with_env_filter(
+        EnvFilter::builder()
+            .with_default_directive(tracing::Level::INFO.into())
+            .from_env_lossy(),
+    );
+    if std::io::stdout().is_terminal() {
+        logger.init();
     } else {
-        tracing_subscriber::fmt::fmt().without_time().init();
+        logger.without_time().init();
     }
 
     let app: App = argh::from_env();
