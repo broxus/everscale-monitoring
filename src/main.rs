@@ -52,11 +52,37 @@ impl CmdRun {
         let global_config = ton_indexer::GlobalConfig::load(&self.global_config)
             .context("Failed to open global config")?;
 
-        let engine = Engine::new(config, global_config)
-            .await
-            .context("Failed to create engine")?;
-        engine.start().await.context("Failed to start engine")?;
+        // Start listening termination signals
+        let signal_rx = broxus_util::any_signal(broxus_util::TERMINATION_SIGNALS);
 
-        futures::future::pending().await
+        // Spawn cancellation future
+        let cancellation_token = CancellationToken::new();
+        let cancelled = cancellation_token.cancelled();
+
+        tokio::spawn({
+            let cancellation_token = cancellation_token.clone();
+
+            async move {
+                if let Ok(signal) = signal_rx.await {
+                    tracing::warn!(?signal, "received termination signal");
+                    cancellation_token.cancel();
+                }
+            }
+        });
+
+        let engine_fut = async {
+            let engine = Engine::new(config, global_config)
+                .await
+                .context("Failed to create engine")?;
+            engine.start().await.context("Failed to start engine")?;
+
+            futures::future::pending().await
+        };
+
+        // Cancellable main loop
+        tokio::select! {
+            res = engine_fut => res,
+            _ = cancelled => Ok(()),
+        }
     }
 }
