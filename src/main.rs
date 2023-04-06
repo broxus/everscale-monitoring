@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use everscale_monitoring::config::*;
 use everscale_monitoring::engine::*;
 use is_terminal::IsTerminal;
-use tokio_util::sync::CancellationToken;
 use tracing_subscriber::EnvFilter;
 
 #[global_allocator]
@@ -63,21 +62,6 @@ impl CmdRun {
         // Start listening termination signals
         let signal_rx = broxus_util::any_signal(broxus_util::TERMINATION_SIGNALS);
 
-        // Spawn cancellation future
-        let cancellation_token = CancellationToken::new();
-        let cancelled = cancellation_token.cancelled();
-
-        tokio::spawn({
-            let cancellation_token = cancellation_token.clone();
-
-            async move {
-                if let Ok(signal) = signal_rx.await {
-                    tracing::warn!(?signal, "received termination signal");
-                    cancellation_token.cancel();
-                }
-            }
-        });
-
         let engine_fut = async {
             let engine = Engine::new(config, global_config)
                 .await
@@ -89,8 +73,13 @@ impl CmdRun {
 
         // Cancellable main loop
         tokio::select! {
-            res = engine_fut => res,
-            _ = cancelled => Ok(()),
+            result = engine_fut => result,
+            signal = signal_rx => {
+                if let Ok(signal) = signal {
+                    tracing::warn!(?signal, "received termination signal, flushing state...");
+                }
+                Ok(())
+            },
         }
     }
 }
