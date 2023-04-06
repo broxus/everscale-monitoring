@@ -407,7 +407,9 @@ impl std::fmt::Display for MetricsState {
             config.fmt(f)?;
         }
 
-        f.begin_metric("frmon_updated").value(now())?;
+        f.begin_metric("frmon_updated")
+            .label("exporter_version", crate::VERSION)
+            .value(now())?;
 
         Ok(())
     }
