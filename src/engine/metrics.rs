@@ -271,7 +271,13 @@ impl std::fmt::Display for MetricsState {
         const SOCKET_ADDR: &str = "socket_addr";
 
         let mc_utime = self.mc_utime.load(Ordering::Acquire);
-        if mc_utime == 0 {
+        let is_ready = mc_utime > 0;
+
+        f.begin_metric("is_ready")
+            .label("exporter_version", crate::VERSION)
+            .value(is_ready as u8)?;
+
+        if !is_ready {
             return Ok(());
         }
 
@@ -407,9 +413,7 @@ impl std::fmt::Display for MetricsState {
             config.fmt(f)?;
         }
 
-        f.begin_metric("frmon_updated")
-            .label("exporter_version", crate::VERSION)
-            .value(now())?;
+        f.begin_metric("frmon_updated").value(now())?;
 
         Ok(())
     }
