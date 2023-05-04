@@ -30,10 +30,25 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 is-terminal = "0.4"
 
-nekoton-abi = { git = "https://github.com/broxus/nekoton.git", features = ["derive"] }
+nekoton-abi = { git = "https://github.com/broxus/nekoton.git", features = ["derive"], rev = "d23e741c72061622871bef1c6b77f89c37d79139" }
 
 ton-indexer = { git = "https://github.com/broxus/ton-indexer.git", features = ["archive-uploader"] }
 
 ton_block = { git = "https://github.com/broxus/ton-labs-block.git" }
 ton_types = { git = "https://github.com/broxus/ton-labs-types.git" }
 ton_abi = { git = "https://github.com/broxus/ton-labs-abi.git" }
+
+[patch."https://github.com/broxus/ton-labs-executor.git"]
+ton_executor = { git = "https://www.github.com/broxus/ton-labs-executor.git", branch = "old" }
+
+[patch."https://github.com/broxus/ton-labs-vm.git"]
+ton_vm = { git = "https://www.github.com/broxus/ton-labs-vm.git", branch = "old" }
+
+[patch."https://github.com/broxus/ton-labs-abi.git"]
+ton_abi = { git = "https://www.github.com/broxus/ton-labs-abi.git", branch = "old" }
+
+[patch."https://github.com/broxus/ton-labs-block.git"]
+ton_block = { git = "https://www.github.com/broxus/ton-labs-block.git", branch = "old" }
+
+[patch."https://github.com/broxus/ton-labs-types.git"]
+ton_types = { git = "https://www.github.com/broxus/ton-labs-types.git", branch = "old" }
