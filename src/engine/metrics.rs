@@ -395,6 +395,11 @@ impl std::fmt::Display for MetricsState {
                     .last_shard_client_mc_block_seqno
                     .load(Ordering::Acquire),
             )?;
+            f.begin_metric("frmon_mc_shard_utime").value(
+                engine
+                    .last_shard_client_mc_block_utime
+                    .load(Ordering::Acquire),
+            )?;
 
             f.begin_metric("frmon_mc_shard_time_diff")
                 .value(engine.shard_client_time_diff.load(Ordering::Acquire))?;
