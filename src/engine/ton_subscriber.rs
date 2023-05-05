@@ -27,7 +27,7 @@ pub struct TonSubscriber {
     metrics: Arc<MetricsState>,
     last_config: ArcSwapOption<ConfigParams>,
     elector_address: ton_block::MsgAddressInt,
-    elector_address_hash: ton_types::UInt256,
+    elector_address_hash: UInt256,
     first_mc_block: AtomicBool,
     validators_to_resolve: VsetTx,
 }
@@ -127,8 +127,35 @@ impl TonSubscriber {
 
         let mut update_elector_state = block_info.key_block();
 
+        let mut in_msg_count: u32 = 0;
+
+        extra.read_in_msg_descr()?.iterate_objects(|_| {
+            in_msg_count += 1;
+            Ok(true)
+        })?;
+
+        let mut out_msgs_count: u32 = 0;
+
+        extra.read_out_msg_descr()?.iterate_objects(|x| {
+            let message = x.read_message()?;
+            if let Some(message) = message {
+                if message.is_inbound_external() {
+                    out_msgs_count += 1;
+                }
+            }
+            Ok(true)
+        })?;
+
+        let out_in_message_ratio: f64 = if in_msg_count == 0 {
+            0.0
+        } else {
+            out_msgs_count as f64 / in_msg_count as f64
+        };
+
         let account_blocks = extra.read_account_blocks()?;
+        let mut account_blocks_count = 0;
         account_blocks.iterate_objects(|block| {
+            account_blocks_count += 1;
             block
                 .transactions()
                 .iterate_objects(|ton_block::InRefValue(transaction)| {
@@ -158,6 +185,15 @@ impl TonSubscriber {
                 })?;
             Ok(true)
         })?;
+
+        let account_message_ratio: f64 = if out_msgs_count == 0 {
+            0.0
+        } else {
+            account_blocks_count as f64 / out_msgs_count as f64
+        };
+
+        self.metrics
+            .update_account_blocks_count(account_blocks_count);
 
         // Update aggregated metrics
         self.metrics.aggregate_block_info(BlockInfo {
@@ -317,6 +353,8 @@ impl TonSubscriber {
                 seqno,
                 utime,
                 transaction_count,
+                account_message_ratio,
+                out_in_message_ratio,
             };
 
             if !block_info.after_split() && !block_info.after_merge() {
