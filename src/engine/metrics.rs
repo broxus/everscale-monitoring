@@ -33,6 +33,8 @@ pub struct ShardChainStats {
     pub seqno: u32,
     pub utime: u32,
     pub transaction_count: u32,
+    pub account_blocks_count: u32,
+
     pub account_message_ratio: f64,
     pub out_in_message_ratio: f64,
 }
@@ -107,11 +109,6 @@ pub struct MetricsState {
 }
 
 impl MetricsState {
-    pub fn update_account_blocks_count(&self, account_blocks: u32) {
-        self.account_blocks_count
-            .store(account_blocks, Ordering::Release);
-    }
-
     pub fn set_engine_metrics(&self, engine_metrics: &Arc<EngineMetrics>) {
         *self.engine_metrics.lock() = Some(engine_metrics.clone());
     }
@@ -341,6 +338,14 @@ impl std::fmt::Display for MetricsState {
                 f.begin_metric("frmon_sc_utime")
                     .label(SHARD, &shard.short_name)
                     .value(utime)?;
+
+                f.begin_metric("frmon_sc_tottrc")
+                    .label(SHARD, &shard.short_name)
+                    .value(shard.total_transaction_count.load(Ordering::Acquire))?;
+
+                f.begin_metric("frmon_sc_accnblk")
+                    .label(SHARD, &shard.short_name)
+                    .value(shard.account_blocks.load(Ordering::Acquire))?;
 
                 f.begin_metric("frmon_sc_avgtrc")
                     .label(SHARD, &shard.short_name)
@@ -590,6 +595,10 @@ struct ShardState {
     short_name: String,
     seqno_and_utime: AtomicU64,
     avg_transaction_count: AverageValueCounter,
+
+    total_transaction_count: AtomicU32,
+    account_blocks: AtomicU32,
+
     account_message_ratio: Mutex<Option<f64>>,
     out_in_message_ratio: Mutex<Option<f64>>,
 }
@@ -605,6 +614,10 @@ impl ShardState {
                 (((stats.seqno as u64) << 32) | stats.utime as u64) | Self::DIRTY_FLAG,
             ),
             avg_transaction_count: AverageValueCounter::with_value(stats.transaction_count),
+
+            total_transaction_count: AtomicU32::new(stats.transaction_count),
+            account_blocks: AtomicU32::new(stats.account_blocks_count),
+
             account_message_ratio: Mutex::new(None),
             out_in_message_ratio: Mutex::new(None),
         }
@@ -616,6 +629,15 @@ impl ShardState {
             Ordering::Release,
         );
         self.avg_transaction_count.push(stats.transaction_count);
+
+        let total_transaction_count = self.total_transaction_count.load(Ordering::Acquire);
+        let new_count = std::cmp::max(total_transaction_count, stats.transaction_count);
+        self.total_transaction_count
+            .store(new_count, Ordering::Release);
+
+        let account_blocks = self.account_blocks.load(Ordering::Acquire);
+        let new_count = std::cmp::max(account_blocks, stats.account_blocks_count);
+        self.account_blocks.store(new_count, Ordering::Release);
 
         {
             let mut guard = self.account_message_ratio.lock();

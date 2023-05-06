@@ -192,9 +192,6 @@ impl TonSubscriber {
             account_blocks_count as f64 / out_msgs_count as f64
         };
 
-        self.metrics
-            .update_account_blocks_count(account_blocks_count);
-
         // Update aggregated metrics
         self.metrics.aggregate_block_info(BlockInfo {
             message_count,
@@ -353,6 +350,7 @@ impl TonSubscriber {
                 seqno,
                 utime,
                 transaction_count,
+                account_blocks_count,
                 account_message_ratio,
                 out_in_message_ratio,
             };
