@@ -310,19 +310,14 @@ impl std::fmt::Display for MetricsState {
             .value(self.mc_avg_transaction_count.reset().unwrap_or_default())?;
 
         for shard in self.shards.read().values() {
-            let account_message_ratio_opt = shard.load_account_message_ratio();
-            let out_in_message_ratio_opt = shard.load_out_in_message_ratio();
-
-            if let Some(account_message_ratio) = account_message_ratio_opt {
+            if let Some(temp_state) = shard.load_temp_state() {
                 f.begin_metric("frmon_accounts_msg_ratio")
                     .label(SHARD, &shard.short_name)
-                    .value(account_message_ratio)?;
-            }
+                    .value(temp_state.account_message_ratio)?;
 
-            if let Some(out_in_message_ratio) = out_in_message_ratio_opt {
                 f.begin_metric("frmon_out_in_message_ratio")
                     .label(SHARD, &shard.short_name)
-                    .value(out_in_message_ratio)?;
+                    .value(temp_state.out_in_message_ratio)?;
             }
 
             if let Some((seqno, utime)) = shard.load_seqno_and_utime() {
@@ -594,8 +589,7 @@ struct ShardState {
     total_transaction_count: AtomicU32,
     account_blocks: AtomicU32,
 
-    account_message_ratio: Mutex<Option<f64>>,
-    out_in_message_ratio: Mutex<Option<f64>>,
+    temp_state: Mutex<Option<TempShardState>>,
 }
 
 impl ShardState {
@@ -613,8 +607,7 @@ impl ShardState {
             total_transaction_count: AtomicU32::new(stats.transaction_count),
             account_blocks: AtomicU32::new(stats.account_blocks_count),
 
-            account_message_ratio: Mutex::new(None),
-            out_in_message_ratio: Mutex::new(None),
+            temp_state: Mutex::new(Default::default()),
         }
     }
 
@@ -632,32 +625,26 @@ impl ShardState {
             .fetch_add(stats.account_blocks_count, Ordering::Release);
 
         {
-            let mut guard = self.account_message_ratio.lock();
-            if let Some(prev_ratio) = &mut *guard {
-                *prev_ratio = stats.account_message_ratio.max(*prev_ratio);
-            } else {
-                *guard = Some(stats.account_message_ratio);
-            }
-        }
+            let mut temp_state = self.temp_state.lock();
+            if let Some(temp_state) = &mut *temp_state {
+                temp_state.account_message_ratio = stats
+                    .account_message_ratio
+                    .max(temp_state.account_message_ratio);
 
-        {
-            let mut guard = self.out_in_message_ratio.lock();
-            if let Some(prev_ratio) = &mut *guard {
-                *prev_ratio = stats.out_in_message_ratio.max(*prev_ratio);
+                temp_state.out_in_message_ratio = stats
+                    .out_in_message_ratio
+                    .max(temp_state.out_in_message_ratio);
             } else {
-                *guard = Some(stats.out_in_message_ratio);
+                *temp_state = Some(TempShardState {
+                    account_message_ratio: stats.account_message_ratio,
+                    out_in_message_ratio: stats.out_in_message_ratio,
+                });
             }
         }
     }
 
-    fn load_account_message_ratio(&self) -> Option<f64> {
-        let mut guard = self.account_message_ratio.lock();
-        guard.take()
-    }
-
-    fn load_out_in_message_ratio(&self) -> Option<f64> {
-        let mut guard = self.out_in_message_ratio.lock();
-        guard.take()
+    fn load_temp_state(&self) -> Option<TempShardState> {
+        self.temp_state.lock().take()
     }
 
     fn load_seqno_and_utime(&self) -> Option<(u32, u32)> {
@@ -671,6 +658,12 @@ impl ShardState {
             None
         }
     }
+}
+
+#[derive(Default)]
+struct TempShardState {
+    account_message_ratio: f64,
+    out_in_message_ratio: f64,
 }
 
 #[derive(Default)]
