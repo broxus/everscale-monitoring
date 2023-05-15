@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use anyhow::{anyhow, Result};
 use broxus_util::now;
+use parking_lot::Mutex;
 use pomfrit::formatter::*;
 use rustc_hash::FxHashMap;
 use ton_indexer::EngineMetrics;
@@ -32,6 +33,10 @@ pub struct ShardChainStats {
     pub seqno: u32,
     pub utime: u32,
     pub transaction_count: u32,
+    pub account_blocks_count: u32,
+
+    pub account_message_ratio: f64,
+    pub out_in_message_ratio: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -305,6 +310,21 @@ impl std::fmt::Display for MetricsState {
             .value(self.mc_avg_transaction_count.reset().unwrap_or_default())?;
 
         for shard in self.shards.read().values() {
+            let account_message_ratio_opt = shard.load_account_message_ratio();
+            let out_in_message_ratio_opt = shard.load_out_in_message_ratio();
+
+            if let Some(account_message_ratio) = account_message_ratio_opt {
+                f.begin_metric("frmon_accounts_msg_ratio")
+                    .label(SHARD, &shard.short_name)
+                    .value(account_message_ratio)?;
+            }
+
+            if let Some(out_in_message_ratio) = out_in_message_ratio_opt {
+                f.begin_metric("frmon_out_in_message_ratio")
+                    .label(SHARD, &shard.short_name)
+                    .value(out_in_message_ratio)?;
+            }
+
             if let Some((seqno, utime)) = shard.load_seqno_and_utime() {
                 f.begin_metric("frmon_sc_seqno")
                     .label(SHARD, &shard.short_name)
@@ -313,6 +333,14 @@ impl std::fmt::Display for MetricsState {
                 f.begin_metric("frmon_sc_utime")
                     .label(SHARD, &shard.short_name)
                     .value(utime)?;
+
+                f.begin_metric("frmon_sc_tottrc")
+                    .label(SHARD, &shard.short_name)
+                    .value(shard.total_transaction_count.load(Ordering::Acquire))?;
+
+                f.begin_metric("frmon_sc_accnblk")
+                    .label(SHARD, &shard.short_name)
+                    .value(shard.account_blocks.load(Ordering::Acquire))?;
 
                 f.begin_metric("frmon_sc_avgtrc")
                     .label(SHARD, &shard.short_name)
@@ -562,6 +590,12 @@ struct ShardState {
     short_name: String,
     seqno_and_utime: AtomicU64,
     avg_transaction_count: AverageValueCounter,
+
+    total_transaction_count: AtomicU32,
+    account_blocks: AtomicU32,
+
+    account_message_ratio: Mutex<Option<f64>>,
+    out_in_message_ratio: Mutex<Option<f64>>,
 }
 
 impl ShardState {
@@ -575,6 +609,12 @@ impl ShardState {
                 (((stats.seqno as u64) << 32) | stats.utime as u64) | Self::DIRTY_FLAG,
             ),
             avg_transaction_count: AverageValueCounter::with_value(stats.transaction_count),
+
+            total_transaction_count: AtomicU32::new(stats.transaction_count),
+            account_blocks: AtomicU32::new(stats.account_blocks_count),
+
+            account_message_ratio: Mutex::new(None),
+            out_in_message_ratio: Mutex::new(None),
         }
     }
 
@@ -584,6 +624,40 @@ impl ShardState {
             Ordering::Release,
         );
         self.avg_transaction_count.push(stats.transaction_count);
+
+        self.total_transaction_count
+            .fetch_add(stats.transaction_count, Ordering::Release);
+
+        self.account_blocks
+            .fetch_add(stats.account_blocks_count, Ordering::Release);
+
+        {
+            let mut guard = self.account_message_ratio.lock();
+            if let Some(prev_ratio) = &mut *guard {
+                *prev_ratio = stats.account_message_ratio.max(*prev_ratio);
+            } else {
+                *guard = Some(stats.account_message_ratio);
+            }
+        }
+
+        {
+            let mut guard = self.out_in_message_ratio.lock();
+            if let Some(prev_ratio) = &mut *guard {
+                *prev_ratio = stats.out_in_message_ratio.max(*prev_ratio);
+            } else {
+                *guard = Some(stats.out_in_message_ratio);
+            }
+        }
+    }
+
+    fn load_account_message_ratio(&self) -> Option<f64> {
+        let mut guard = self.account_message_ratio.lock();
+        guard.take()
+    }
+
+    fn load_out_in_message_ratio(&self) -> Option<f64> {
+        let mut guard = self.out_in_message_ratio.lock();
+        guard.take()
     }
 
     fn load_seqno_and_utime(&self) -> Option<(u32, u32)> {
