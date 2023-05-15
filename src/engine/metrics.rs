@@ -630,14 +630,11 @@ impl ShardState {
         );
         self.avg_transaction_count.push(stats.transaction_count);
 
-        let total_transaction_count = self.total_transaction_count.load(Ordering::Acquire);
-        let new_count = std::cmp::max(total_transaction_count, stats.transaction_count);
         self.total_transaction_count
-            .store(new_count, Ordering::Release);
+            .fetch_add(stats.transaction_count, Ordering::Release);
 
-        let account_blocks = self.account_blocks.load(Ordering::Acquire);
-        let new_count = std::cmp::max(account_blocks, stats.account_blocks_count);
-        self.account_blocks.store(new_count, Ordering::Release);
+        self.account_blocks
+            .fetch_add(stats.account_blocks_count, Ordering::Release);
 
         {
             let mut guard = self.account_message_ratio.lock();
