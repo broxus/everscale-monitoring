@@ -118,7 +118,7 @@ impl TonSubscriber {
         let info = block.read_info()?;
 
         let block_info = block.read_info()?;
-        let utime = block_info.gen_utime().0;
+        let utime = block_info.gen_utime().as_u32();
         let software_version = block_info.gen_software().map(|v| v.version);
 
         // Count transactions and messages
@@ -176,7 +176,7 @@ impl TonSubscriber {
                                     ..
                                 },
                             ) if in_msg.body().is_some()
-                                && value.grams.0 > ELECTOR_UPDATE_THRESHOLD
+                                && value.grams.as_u128() > ELECTOR_UPDATE_THRESHOLD
                                 && src.workchain_id() == ton_block::MASTERCHAIN_ID
                                 && dst == &self.elector_address
                         );

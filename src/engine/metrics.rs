@@ -488,17 +488,17 @@ impl ConfigMetrics {
         self.global_version = version.version;
         self.global_capabilities = version.capabilities;
 
-        self.max_validators = validator_count.max_validators.0;
-        self.max_main_validators = validator_count.max_main_validators.0;
-        self.min_validators = validator_count.min_validators.0;
+        self.max_validators = validator_count.max_validators.as_u32();
+        self.max_main_validators = validator_count.max_main_validators.as_u32();
+        self.min_validators = validator_count.min_validators.as_u32();
 
-        self.min_stake = stakes_config.min_stake.0.try_into().unwrap_or(u64::MAX);
-        self.max_stake = stakes_config.max_stake.0.try_into().unwrap_or(u64::MAX);
-        self.min_total_stake = stakes_config
-            .min_total_stake
-            .0
-            .try_into()
-            .unwrap_or(u64::MAX);
+        fn clamp_stake(grams: ton_block::Grams) -> u64 {
+            grams.as_u128().try_into().unwrap_or(u64::MAX)
+        }
+
+        self.min_stake = clamp_stake(stakes_config.min_stake);
+        self.max_stake = clamp_stake(stakes_config.max_stake);
+        self.min_total_stake = clamp_stake(stakes_config.min_total_stake);
         self.max_stake_factor = stakes_config.max_stake_factor;
 
         Ok(())

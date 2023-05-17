@@ -22,7 +22,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 is-terminal = "0.4"
 
-rocksdb = { version = "0.20", features = [
+rocksdb = { version = "0.21", features = [
     "zstd",
     "lz4",
     "jemalloc",

@@ -15,7 +15,7 @@ pub fn parse_current_election(
 
     let (data, _) = ton_abi::TokenValue::read_from(
         params,
-        data.into(),
+        data,
         false,
         &ton_abi::contract::ABI_VERSION_2_1,
         true,
@@ -37,7 +37,7 @@ pub fn parse_elector_data_full(elector_account: &ton_block::ShardAccount) -> Res
 
     let (data, _) = ton_abi::TokenValue::read_from(
         params,
-        data.into(),
+        data,
         true,
         &ton_abi::contract::ABI_VERSION_2_1,
         false,
@@ -48,7 +48,7 @@ pub fn parse_elector_data_full(elector_account: &ton_block::ShardAccount) -> Res
         .context("Failed to parse decoded elector state data")
 }
 
-fn read_elector_data(account: &ton_block::ShardAccount) -> Result<ton_types::Cell> {
+fn read_elector_data(account: &ton_block::ShardAccount) -> Result<ton_types::SliceData> {
     let account = match account.read_account()? {
         ton_block::Account::Account(account) => account,
         ton_block::Account::AccountNone => anyhow::bail!("Elector account is empty"),
@@ -60,7 +60,7 @@ fn read_elector_data(account: &ton_block::ShardAccount) -> Result<ton_types::Cel
     };
 
     match state.data {
-        Some(data) => Ok(data),
+        Some(data) => ton_types::SliceData::load_cell(data),
         None => anyhow::bail!("Elector data is empty"),
     }
 }

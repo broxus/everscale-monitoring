@@ -25,6 +25,8 @@ curl http://127.0.0.1:10000/metrics
 ---
 node_settings:
   db_path: "/var/db/everscale-monitoring"
+  db_options:
+    max_memory_usage: 2147483648 # 2GB
 metrics_settings:
   listen_address: "0.0.0.0:10000"
   metrics_path: "/metrics"
