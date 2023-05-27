@@ -11,7 +11,13 @@ anyhow = "1.0"
 arc-swap = "1.5"
 argh = "0.1"
 async-trait = "0.1"
-broxus-util = { version = "0.2", default-features = false, features = ["serde", "config", "alloc", "public-ip", "signal"] }
+broxus-util = { version = "0.2", default-features = false, features = [
+    "serde",
+    "config",
+    "alloc",
+    "public-ip",
+    "signal",
+] }
 config = { version = "0.13", default-features = false, features = ["yaml"] }
 everscale-crypto = "0.2.0-pre.1"
 everscale-network = "0.5"
@@ -37,3 +43,6 @@ ton-indexer = { git = "https://github.com/broxus/ton-indexer.git", features = ["
 ton_block = { git = "https://github.com/broxus/ton-labs-block.git" }
 ton_types = { git = "https://github.com/broxus/ton-labs-types.git" }
 ton_abi = { git = "https://github.com/broxus/ton-labs-abi.git" }
+
+[features]
+venom = ["ton_block/venom", "ton-indexer/venom"]
