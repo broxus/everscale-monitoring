@@ -56,6 +56,10 @@ impl Engine {
         })
     }
 
+    pub fn indexer(&self) -> &Arc<ton_indexer::Engine> {
+        &self.ton_engine
+    }
+
     pub async fn start(&self) -> Result<()> {
         self.ton_subscriber
             .start(&self.ton_engine)

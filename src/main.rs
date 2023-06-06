@@ -55,6 +55,10 @@ struct CmdRun {
     /// path to global config file
     #[argh(option, short = 'g')]
     global_config: String,
+
+    /// compact database before start
+    #[argh(switch)]
+    run_compaction: bool,
 }
 
 impl CmdRun {
@@ -69,10 +73,19 @@ impl CmdRun {
         // Start listening termination signals
         let signal_rx = broxus_util::any_signal(broxus_util::TERMINATION_SIGNALS);
 
+        let run_compaction = self.run_compaction;
         let engine_fut = async {
             let engine = Engine::new(config, global_config)
                 .await
                 .context("Failed to create engine")?;
+
+            // Return early for special cases
+            if run_compaction {
+                tracing::warn!("started compacting database");
+                engine.indexer().trigger_compaction().await;
+                tracing::warn!("finished compacting database");
+            }
+
             engine.start().await.context("Failed to start engine")?;
 
             futures::future::pending().await
