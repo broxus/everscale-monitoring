@@ -24,12 +24,35 @@ curl http://127.0.0.1:10000/metrics
 ```yaml
 ---
 node_settings:
+  # UDP port, used for ADNL node. Default: 30303
+  adnl_port: 30000
+
+  # Root directory for the node DB. Default: "./db"
   db_path: "/var/db/everscale-monitoring"
-  db_options:
-    max_memory_usage: 2147483648 # 2GB
+
+  # Manual rocksdb memory options (will be computed from the
+  # available memory otherwise).
+  # db_options:
+  #   rocksdb_lru_capacity: "512 MB"
+  #   cells_cache_size: "4 GB"
+
+  # Everscale specific network settings
+  adnl_options:
+    use_loopback_for_neighbours: true
+    force_use_priority_channels: true
+  rldp_options:
+    force_compression: true
+  overlay_shard_options:
+    force_compression: true
+
 metrics_settings:
+  # Listen address of metrics. Used by the client to gather prometheus metrics.
+  # Default: "127.0.0.1:10000"
   listen_address: "0.0.0.0:10000"
+  # URL path to the metrics. Default: "/"
+  # Example: `curl http://127.0.0.1:10000/metrics`
   metrics_path: "/metrics"
+  # Metrics update interval in seconds. Default: 10
   collection_interval_sec: 10
 ```
 

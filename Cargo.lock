@@ -64,7 +64,7 @@ checksum = "bddcadddf5e9015d310179a59bb28c4d4b9920ad0f11e8e14dbadf654890c9a6"
 [[package]]
 name = "archive-uploader"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#1e0690d44de1faa6376f8f4b008890356b4e5b09"
+source = "git+https://github.com/broxus/ton-indexer.git#d5b318c2cf0ab6c75a1c1350f21fa5bbfe7ad2df"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
@@ -996,7 +996,7 @@ checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 [[package]]
 name = "global-config"
 version = "0.1.0"
-source = "git+https://github.com/broxus/ton-indexer.git#1e0690d44de1faa6376f8f4b008890356b4e5b09"
+source = "git+https://github.com/broxus/ton-indexer.git#d5b318c2cf0ab6c75a1c1350f21fa5bbfe7ad2df"
 dependencies = [
  "anyhow",
  "base64 0.13.1",
@@ -1693,9 +1693,9 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
 name = "openssl"
-version = "0.10.54"
+version = "0.10.55"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69b3f656a17a6cbc115b5c7a40c616947d213ba182135b014d6051b73ab6f019"
+checksum = "345df152bc43501c5eb9e4654ff05f794effb78d4efe3d53abc158baddc0703d"
 dependencies = [
  "bitflags",
  "cfg-if",
@@ -1725,9 +1725,9 @@ checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
 name = "openssl-sys"
-version = "0.9.88"
+version = "0.9.90"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2ce0f250f34a308dcfdbb351f511359857d4ed2134ba715a4eadd46e1ffd617"
+checksum = "374533b0e45f3a7ced10fcaeccca020e66656bc03dac384f852e4e5a7a8104a6"
 dependencies = [
  "cc",
  "libc",
@@ -1910,9 +1910,9 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "prettyplease"
-version = "0.2.8"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2b0377b720bde721213a46cda1289b2f34abf0a436907cad91578c20de0454d"
+checksum = "9825a04601d60621feed79c4e6b56d65db77cdca55cef43b46b0de1096d1c282"
 dependencies = [
  "proc-macro2",
  "syn 2.0.18",
@@ -2608,7 +2608,7 @@ dependencies = [
 [[package]]
 name = "ton-indexer"
 version = "0.2.1"
-source = "git+https://github.com/broxus/ton-indexer.git#1e0690d44de1faa6376f8f4b008890356b4e5b09"
+source = "git+https://github.com/broxus/ton-indexer.git#d5b318c2cf0ab6c75a1c1350f21fa5bbfe7ad2df"
 dependencies = [
  "ahash",
  "anyhow",
