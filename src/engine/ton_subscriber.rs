@@ -185,12 +185,16 @@ impl TonSubscriber {
             Ok(true)
         })?;
 
-        let out_in_message_ratio = (in_msg_count > 0)
-            .then(|| out_msgs_count as f64 / in_msg_count as f64)
-            .unwrap_or_default();
-        let out_message_account_ratio = (account_blocks_count > 0)
-            .then(|| out_msgs_count as f64 / account_blocks_count as f64)
-            .unwrap_or_default();
+        let out_in_message_ratio = if in_msg_count > 0 {
+            out_msgs_count as f64 / in_msg_count as f64
+        } else {
+            0.0
+        };
+        let out_message_account_ratio = if account_blocks_count > 0 {
+            out_msgs_count as f64 / account_blocks_count as f64
+        } else {
+            0.0
+        };
 
         // Update aggregated metrics
         self.metrics.aggregate_block_info(BlockInfo {
