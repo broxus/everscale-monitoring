@@ -35,8 +35,8 @@ pub struct ShardChainStats {
     pub transaction_count: u32,
     pub account_blocks_count: u32,
 
-    pub account_message_ratio: f64,
     pub out_in_message_ratio: f64,
+    pub out_message_account_ratio: f64,
 }
 
 #[derive(Debug, Clone)]
@@ -311,13 +311,13 @@ impl std::fmt::Display for MetricsState {
 
         for shard in self.shards.read().values() {
             if let Some(temp_state) = shard.load_temp_state() {
-                f.begin_metric("frmon_accounts_msg_ratio")
-                    .label(SHARD, &shard.short_name)
-                    .value(temp_state.account_message_ratio)?;
-
-                f.begin_metric("frmon_out_in_message_ratio")
+                f.begin_metric("frmon_out_msg_to_in_msg_ratio")
                     .label(SHARD, &shard.short_name)
                     .value(temp_state.out_in_message_ratio)?;
+
+                f.begin_metric("frmon_out_msg_to_acc_ratio")
+                    .label(SHARD, &shard.short_name)
+                    .value(temp_state.out_message_account_ratio)?;
             }
 
             if let Some((seqno, utime)) = shard.load_seqno_and_utime() {
@@ -627,17 +627,17 @@ impl ShardState {
         {
             let mut temp_state = self.temp_state.lock();
             if let Some(temp_state) = &mut *temp_state {
-                temp_state.account_message_ratio = stats
-                    .account_message_ratio
-                    .max(temp_state.account_message_ratio);
-
                 temp_state.out_in_message_ratio = stats
                     .out_in_message_ratio
                     .max(temp_state.out_in_message_ratio);
+
+                temp_state.out_message_account_ratio = stats
+                    .out_message_account_ratio
+                    .max(temp_state.out_message_account_ratio);
             } else {
                 *temp_state = Some(TempShardState {
-                    account_message_ratio: stats.account_message_ratio,
                     out_in_message_ratio: stats.out_in_message_ratio,
+                    out_message_account_ratio: stats.out_message_account_ratio,
                 });
             }
         }
@@ -662,8 +662,8 @@ impl ShardState {
 
 #[derive(Default)]
 struct TempShardState {
-    account_message_ratio: f64,
     out_in_message_ratio: f64,
+    out_message_account_ratio: f64,
 }
 
 #[derive(Default)]

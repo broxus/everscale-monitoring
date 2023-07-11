@@ -128,29 +128,25 @@ impl TonSubscriber {
         let mut update_elector_state = block_info.key_block();
 
         let mut in_msg_count: u32 = 0;
-
-        extra.read_in_msg_descr()?.iterate_objects(|_| {
-            in_msg_count += 1;
+        extra.read_in_msg_descr()?.iterate_objects(|in_msg| {
+            in_msg_count += matches!(
+                in_msg,
+                ton_block::InMsg::External(_)
+                    | ton_block::InMsg::IHR(_)
+                    | ton_block::InMsg::Immediate(_)
+                    | ton_block::InMsg::Final(_)
+            ) as u32;
             Ok(true)
         })?;
 
         let mut out_msgs_count: u32 = 0;
-
-        extra.read_out_msg_descr()?.iterate_objects(|x| {
-            let message = x.read_message()?;
-            if let Some(message) = message {
-                if message.is_inbound_external() {
-                    out_msgs_count += 1;
-                }
-            }
+        extra.read_out_msg_descr()?.iterate_objects(|out_msg| {
+            out_msgs_count += matches!(
+                out_msg,
+                ton_block::OutMsg::New(_) | ton_block::OutMsg::Immediate(_)
+            ) as u32;
             Ok(true)
         })?;
-
-        let out_in_message_ratio: f64 = if in_msg_count == 0 {
-            0.0
-        } else {
-            out_msgs_count as f64 / in_msg_count as f64
-        };
 
         let account_blocks = extra.read_account_blocks()?;
         let mut account_blocks_count = 0;
@@ -186,11 +182,12 @@ impl TonSubscriber {
             Ok(true)
         })?;
 
-        let account_message_ratio: f64 = if out_msgs_count == 0 {
-            0.0
-        } else {
-            account_blocks_count as f64 / out_msgs_count as f64
-        };
+        let out_in_message_ratio = (in_msg_count > 0)
+            .then(|| out_msgs_count as f64 / in_msg_count as f64)
+            .unwrap_or_default();
+        let out_message_account_ratio = (account_blocks_count > 0)
+            .then(|| out_msgs_count as f64 / account_blocks_count as f64)
+            .unwrap_or_default();
 
         // Update aggregated metrics
         self.metrics.aggregate_block_info(BlockInfo {
@@ -351,8 +348,8 @@ impl TonSubscriber {
                 utime,
                 transaction_count,
                 account_blocks_count,
-                account_message_ratio,
                 out_in_message_ratio,
+                out_message_account_ratio,
             };
 
             if !block_info.after_split() && !block_info.after_merge() {
