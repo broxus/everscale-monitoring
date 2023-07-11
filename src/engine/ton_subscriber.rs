@@ -150,6 +150,7 @@ impl TonSubscriber {
 
         let account_blocks = extra.read_account_blocks()?;
         let mut account_blocks_count = 0;
+        let mut total_gas_used = 0;
         account_blocks.iterate_objects(|block| {
             account_blocks_count += 1;
             block
@@ -177,6 +178,8 @@ impl TonSubscriber {
                                 && dst == &self.elector_address
                         );
                     }
+
+                    total_gas_used += transaction.gas_used().unwrap_or_default();
                     Ok(true)
                 })?;
             Ok(true)
@@ -348,6 +351,7 @@ impl TonSubscriber {
                 utime,
                 transaction_count,
                 account_blocks_count,
+                total_gas_used,
                 out_in_message_ratio,
                 out_message_account_ratio,
             };

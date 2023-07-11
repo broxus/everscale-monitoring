@@ -34,6 +34,7 @@ pub struct ShardChainStats {
     pub utime: u32,
     pub transaction_count: u32,
     pub account_blocks_count: u32,
+    pub total_gas_used: u64,
 
     pub out_in_message_ratio: f64,
     pub out_message_account_ratio: f64,
@@ -311,6 +312,18 @@ impl std::fmt::Display for MetricsState {
 
         for shard in self.shards.read().values() {
             if let Some(temp_state) = shard.load_temp_state() {
+                f.begin_metric("frmon_min_total_gas_used")
+                    .label(SHARD, &shard.short_name)
+                    .value(temp_state.min_total_gas_used)?;
+
+                f.begin_metric("frmon_max_total_gas_used")
+                    .label(SHARD, &shard.short_name)
+                    .value(temp_state.max_total_gas_used)?;
+
+                f.begin_metric("frmon_avg_total_gas_used")
+                    .label(SHARD, &shard.short_name)
+                    .value(temp_state.total_gas_used / temp_state.samples)?;
+
                 f.begin_metric("frmon_out_msg_to_in_msg_ratio")
                     .label(SHARD, &shard.short_name)
                     .value(temp_state.out_in_message_ratio)?;
@@ -607,7 +620,14 @@ impl ShardState {
             total_transaction_count: AtomicU32::new(stats.transaction_count),
             account_blocks: AtomicU32::new(stats.account_blocks_count),
 
-            temp_state: Mutex::new(Default::default()),
+            temp_state: Mutex::new(Some(TempShardState {
+                samples: 1,
+                min_total_gas_used: stats.total_gas_used,
+                max_total_gas_used: stats.total_gas_used,
+                total_gas_used: stats.total_gas_used,
+                out_in_message_ratio: stats.out_in_message_ratio,
+                out_message_account_ratio: stats.out_message_account_ratio,
+            })),
         }
     }
 
@@ -627,6 +647,16 @@ impl ShardState {
         {
             let mut temp_state = self.temp_state.lock();
             if let Some(temp_state) = &mut *temp_state {
+                temp_state.samples += 1;
+
+                temp_state.min_total_gas_used =
+                    temp_state.min_total_gas_used.min(stats.total_gas_used);
+                temp_state.max_total_gas_used =
+                    temp_state.max_total_gas_used.max(stats.total_gas_used);
+                temp_state.total_gas_used = temp_state
+                    .total_gas_used
+                    .saturating_add(stats.total_gas_used);
+
                 temp_state.out_in_message_ratio = stats
                     .out_in_message_ratio
                     .max(temp_state.out_in_message_ratio);
@@ -636,6 +666,10 @@ impl ShardState {
                     .max(temp_state.out_message_account_ratio);
             } else {
                 *temp_state = Some(TempShardState {
+                    samples: 1,
+                    min_total_gas_used: stats.total_gas_used,
+                    max_total_gas_used: stats.total_gas_used,
+                    total_gas_used: stats.total_gas_used,
                     out_in_message_ratio: stats.out_in_message_ratio,
                     out_message_account_ratio: stats.out_message_account_ratio,
                 });
@@ -662,6 +696,12 @@ impl ShardState {
 
 #[derive(Default)]
 struct TempShardState {
+    samples: u64,
+
+    min_total_gas_used: u64,
+    max_total_gas_used: u64,
+    total_gas_used: u64,
+
     out_in_message_ratio: f64,
     out_message_account_ratio: f64,
 }
