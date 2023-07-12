@@ -21,10 +21,15 @@ pub struct BlockInfo {
 
 #[derive(Debug, Copy, Clone)]
 pub struct MasterChainStats {
-    pub shard_count: usize,
     pub seqno: u32,
     pub utime: u32,
     pub transaction_count: u32,
+}
+
+pub struct ShardDescr {
+    pub shard_ident: ton_block::ShardIdent,
+    #[cfg(feature = "venom")]
+    pub collators: Option<ton_block::ShardCollators>,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -85,6 +90,13 @@ pub struct PersistentStateInfo {
     pub gen_utime: u32,
 }
 
+#[cfg(feature = "venom")]
+struct StoredShardCollators {
+    short_name: String,
+    #[cfg(feature = "venom")]
+    collators: Option<ton_block::ShardCollators>,
+}
+
 #[derive(Default)]
 pub struct MetricsState {
     blocks_total: AtomicU32,
@@ -97,6 +109,9 @@ pub struct MetricsState {
     mc_seq_no: AtomicU32,
     mc_utime: AtomicU32,
     mc_avg_transaction_count: AverageValueCounter,
+
+    #[cfg(feature = "venom")]
+    collators: parking_lot::RwLock<Vec<StoredShardCollators>>,
 
     mc_software_versions: parking_lot::RwLock<BlockVersions>,
     sc_software_versions: parking_lot::RwLock<BlockVersions>,
@@ -162,11 +177,23 @@ impl MetricsState {
         *self.overlay_metrics.write() = overlays;
     }
 
-    pub fn update_masterchain_stats(&self, stats: MasterChainStats) {
-        self.shard_count.swap(stats.shard_count, Ordering::Release);
+    pub fn update_masterchain_stats(&self, stats: MasterChainStats, shards: &[ShardDescr]) {
+        self.shard_count.swap(shards.len(), Ordering::Release);
         self.mc_seq_no.store(stats.seqno, Ordering::Release);
         self.mc_utime.store(stats.utime, Ordering::Release);
         self.mc_avg_transaction_count.push(stats.transaction_count);
+
+        #[cfg(feature = "venom")]
+        {
+            let mut collators = self.collators.write();
+            *collators = shards
+                .iter()
+                .map(|descr| StoredShardCollators {
+                    short_name: make_short_shard_name(descr.shard_ident.shard_prefix_with_tag()),
+                    collators: descr.collators.clone(),
+                })
+                .collect();
+        }
     }
 
     pub fn update_shard_chain_stats(&self, stats: ShardChainStats) {
@@ -363,6 +390,25 @@ impl std::fmt::Display for MetricsState {
                 f.begin_metric("frmon_sc_avgtrc")
                     .label(SHARD, &shard.short_name)
                     .value(shard.avg_transaction_count.reset().unwrap_or_default())?;
+            }
+        }
+
+        #[cfg(feature = "venom")]
+        for shard in self.collators.read().iter() {
+            if let Some(collators) = &shard.collators {
+                let current = &collators.current;
+
+                f.begin_metric("frmon_sc_collator_idx")
+                    .label(SHARD, &shard.short_name)
+                    .value(current.collator)?;
+
+                f.begin_metric("frmon_sc_collator_since")
+                    .label(SHARD, &shard.short_name)
+                    .value(current.start)?;
+
+                f.begin_metric("frmon_sc_collator_until")
+                    .label(SHARD, &shard.short_name)
+                    .value(current.finish)?;
             }
         }
 

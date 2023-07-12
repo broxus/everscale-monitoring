@@ -223,18 +223,27 @@ impl TonSubscriber {
                 .read_custom()?
                 .ok_or(TonSubscriberError::NotAMasterChainBlock)?;
 
-            let mut shards: Vec<ShardIdent> = Vec::new();
-            mc_extra.hashes().iterate_shards(|shard, _| {
-                shards.push(shard);
+            let mut shards: Vec<ShardDescr> = Vec::new();
+            mc_extra.hashes().iterate_shards(|shard_ident, descr| {
+                #[cfg(not(feature = "venom"))]
+                let _ = descr;
+
+                shards.push(ShardDescr {
+                    shard_ident,
+                    #[cfg(feature = "venom")]
+                    collators: descr.collators,
+                });
                 Ok(true)
             })?;
 
-            self.metrics.update_masterchain_stats(MasterChainStats {
-                shard_count: shards.len(),
-                seqno,
-                utime,
-                transaction_count,
-            });
+            self.metrics.update_masterchain_stats(
+                MasterChainStats {
+                    seqno,
+                    utime,
+                    transaction_count,
+                },
+                &shards,
+            );
 
             if let Some(persistent_state) = engine.current_persistent_state_meta() {
                 self.metrics.update_persistent_state(PersistentStateInfo {
@@ -314,7 +323,9 @@ impl TonSubscriber {
             }
 
             let mut private_overlays: Vec<PrivateOverlayStats> = Vec::new();
-            for shard in std::iter::once(ShardIdent::masterchain()).chain(shards) {
+            for shard in std::iter::once(ShardIdent::masterchain())
+                .chain(shards.iter().map(|descr| descr.shard_ident))
+            {
                 let (subset, _) = validator_set.calc_subset(
                     &catchain_config,
                     shard.shard_prefix_with_tag(),
