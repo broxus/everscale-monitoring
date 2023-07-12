@@ -34,6 +34,8 @@ pub struct ShardChainStats {
     pub utime: u32,
     pub transaction_count: u32,
     pub account_blocks_count: u32,
+    pub contract_deployments: u32,
+    pub contract_destructions: u32,
     pub total_gas_used: u64,
 
     pub out_in_message_ratio: f64,
@@ -350,6 +352,14 @@ impl std::fmt::Display for MetricsState {
                     .label(SHARD, &shard.short_name)
                     .value(shard.account_blocks.load(Ordering::Acquire))?;
 
+                f.begin_metric("frmon_sc_deploys")
+                    .label(SHARD, &shard.short_name)
+                    .value(shard.contract_deployments.load(Ordering::Acquire))?;
+
+                f.begin_metric("frmon_sc_destructs")
+                    .label(SHARD, &shard.short_name)
+                    .value(shard.contract_destructions.load(Ordering::Acquire))?;
+
                 f.begin_metric("frmon_sc_avgtrc")
                     .label(SHARD, &shard.short_name)
                     .value(shard.avg_transaction_count.reset().unwrap_or_default())?;
@@ -601,6 +611,8 @@ struct ShardState {
 
     total_transaction_count: AtomicU32,
     account_blocks: AtomicU32,
+    contract_deployments: AtomicU32,
+    contract_destructions: AtomicU32,
 
     temp_state: Mutex<Option<TempShardState>>,
 }
@@ -619,6 +631,8 @@ impl ShardState {
 
             total_transaction_count: AtomicU32::new(stats.transaction_count),
             account_blocks: AtomicU32::new(stats.account_blocks_count),
+            contract_deployments: AtomicU32::new(stats.contract_deployments),
+            contract_destructions: AtomicU32::new(stats.contract_destructions),
 
             temp_state: Mutex::new(Some(TempShardState {
                 samples: 1,
@@ -640,9 +654,12 @@ impl ShardState {
 
         self.total_transaction_count
             .fetch_add(stats.transaction_count, Ordering::Release);
-
         self.account_blocks
             .fetch_add(stats.account_blocks_count, Ordering::Release);
+        self.contract_deployments
+            .fetch_add(stats.contract_deployments, Ordering::Release);
+        self.contract_destructions
+            .fetch_add(stats.contract_destructions, Ordering::Release);
 
         {
             let mut temp_state = self.temp_state.lock();

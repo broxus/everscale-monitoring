@@ -122,9 +122,6 @@ impl TonSubscriber {
         let software_version = block_info.gen_software().map(|v| v.version);
 
         // Count transactions and messages
-        let mut transaction_count = 0;
-        let mut message_count = 0;
-
         let mut update_elector_state = block_info.key_block();
 
         let mut in_msg_count: u32 = 0;
@@ -148,17 +145,28 @@ impl TonSubscriber {
             Ok(true)
         })?;
 
-        let account_blocks = extra.read_account_blocks()?;
+        let mut transaction_count = 0;
+        let mut message_count = 0;
         let mut account_blocks_count = 0;
+        let mut contract_deployments = 0;
+        let mut contract_destructions = 0;
         let mut total_gas_used = 0;
-        account_blocks.iterate_objects(|block| {
+
+        let account_blocks = extra.read_account_blocks()?;
+        account_blocks.iterate_objects(|acc| {
             account_blocks_count += 1;
-            block
-                .transactions()
-                .iterate_objects(|ton_block::InRefValue(transaction)| {
+            acc.transactions()
+                .iterate_objects(|ton_block::InRefValue(tx)| {
                     transaction_count += 1;
-                    message_count += transaction.outmsg_cnt as u32;
-                    if let Some(in_msg) = transaction.read_in_msg()? {
+                    message_count += tx.outmsg_cnt as u32;
+
+                    let was_active = tx.orig_status == ton_block::AccountStatus::AccStateActive;
+                    let is_active = tx.end_status == ton_block::AccountStatus::AccStateActive;
+
+                    contract_deployments += (!was_active && is_active) as u32;
+                    contract_destructions += (was_active && !is_active) as u32;
+
+                    if let Some(in_msg) = tx.read_in_msg()? {
                         if in_msg.is_inbound_external() {
                             message_count += 1;
                         }
@@ -179,7 +187,7 @@ impl TonSubscriber {
                         );
                     }
 
-                    total_gas_used += transaction.gas_used().unwrap_or_default();
+                    total_gas_used += tx.gas_used().unwrap_or_default();
                     Ok(true)
                 })?;
             Ok(true)
@@ -355,6 +363,8 @@ impl TonSubscriber {
                 utime,
                 transaction_count,
                 account_blocks_count,
+                contract_deployments,
+                contract_destructions,
                 total_gas_used,
                 out_in_message_ratio,
                 out_message_account_ratio,
