@@ -38,13 +38,10 @@ impl Engine {
 
         // Create and sync TON node
         let ton_subscriber = TonSubscriber::new(metrics_state.clone());
-        let ton_engine = ton_indexer::Engine::new(
-            node_config,
-            global_config,
-            vec![ton_subscriber.clone() as Arc<dyn ton_indexer::Subscriber>],
-        )
-        .await
-        .context("Failed to start TON node")?;
+        let ton_engine =
+            ton_indexer::Engine::new(node_config, global_config, ton_subscriber.clone())
+                .await
+                .context("Failed to start TON node")?;
 
         // Set engine metrics object
         metrics_state.set_engine_metrics(ton_engine.metrics());

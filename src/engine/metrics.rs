@@ -499,6 +499,26 @@ impl std::fmt::Display for MetricsState {
 
             f.begin_metric("frmon_mc_shard_time_diff")
                 .value(engine.shard_client_time_diff.load(Ordering::Acquire))?;
+
+            f.begin_metric("ton_indexer_block_broadcasts_total")
+                .value(engine.block_broadcasts.total.load(Ordering::Acquire))?;
+            f.begin_metric("ton_indexer_block_broadcasts_invalid")
+                .value(engine.block_broadcasts.invalid.load(Ordering::Acquire))?;
+
+            macro_rules! downloader_metrics {
+                ($f:ident, $metrics:ident.$name:ident) => {
+                    $f.begin_metric(concat!("ton_indexer_", stringify!($name), "_total"))
+                        .value($metrics.$name.total.load(Ordering::Acquire))?;
+                    $f.begin_metric(concat!("ton_indexer_", stringify!($name), "_errors"))
+                        .value($metrics.$name.errors.load(Ordering::Acquire))?;
+                    $f.begin_metric(concat!("ton_indexer_", stringify!($name), "_timeouts"))
+                        .value($metrics.$name.timeouts.load(Ordering::Acquire))?;
+                };
+            }
+
+            downloader_metrics!(f, engine.download_next_block_requests);
+            downloader_metrics!(f, engine.download_block_requests);
+            downloader_metrics!(f, engine.download_block_proof_requests);
         }
 
         if let Some(persistent_state) = &*self.persistent_state.lock() {
