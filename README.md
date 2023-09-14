@@ -31,10 +31,16 @@ node_settings:
   db_path: "/var/db/everscale-monitoring"
 
   # Manual rocksdb memory options (will be computed from the
-  # available memory otherwise).
-  # db_options:
-  #   rocksdb_lru_capacity: "512 MB"
-  #   cells_cache_size: "4 GB"
+  # available memory if not specified).
+  db_options:
+    rocksdb_lru_capacity: "512 MB"
+    cells_cache_size: "4 GB"
+
+  # # Persistent state prepare options (disabled by default)
+  # persistent_state_options:
+  #   prepare_persistent_states: true
+  #   persistent_state_parallelism: 3
+  #   remove_old_states: true
 
   # Everscale specific network settings
   adnl_options:

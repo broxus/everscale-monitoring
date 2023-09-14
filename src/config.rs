@@ -32,6 +32,12 @@ pub struct NodeConfig {
     /// NOTE: generates new keys if specified path doesn't exist
     pub temp_keys_path: PathBuf,
 
+    /// Persistent state keeper configuration.
+    pub persistent_state_options: ton_indexer::PersistentStateOptions,
+
+    /// Internal DB options.
+    pub db_options: ton_indexer::DbOptions,
+
     /// Archives map queue. Default: 16
     pub parallel_archive_downloads: usize,
 
@@ -46,8 +52,6 @@ pub struct NodeConfig {
 
     /// Start from the specified seqno
     pub start_from: Option<u32>,
-
-    pub db_options: ton_indexer::DbOptions,
 
     pub adnl_options: adnl::NodeOptions,
     pub rldp_options: rldp::NodeOptions,
@@ -95,6 +99,7 @@ impl NodeConfig {
                     ..Default::default()
                 }),
             shard_state_cache_options: None,
+            persistent_state_options: self.persistent_state_options,
             db_options: self.db_options,
             archive_options: self.archive_options,
             sync_options: ton_indexer::SyncOptions {
@@ -118,6 +123,7 @@ impl Default for NodeConfig {
             adnl_port: 30303,
             db_path: "db".into(),
             temp_keys_path: "adnl-keys.json".into(),
+            persistent_state_options: Default::default(),
             db_options: Default::default(),
             parallel_archive_downloads: 16,
             states_gc_enabled: true,
