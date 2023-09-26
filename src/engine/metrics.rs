@@ -8,7 +8,6 @@ use broxus_util::now;
 use parking_lot::Mutex;
 use pomfrit::formatter::*;
 use rustc_hash::FxHashMap;
-use ton_indexer::EngineMetrics;
 
 use super::elector;
 use crate::utils::AverageValueCounter;
@@ -99,6 +98,8 @@ struct StoredShardCollators {
 
 #[derive(Default)]
 pub struct MetricsState {
+    engine: arc_swap::ArcSwapWeak<ton_indexer::Engine>,
+
     blocks_total: AtomicU32,
     messages_total: AtomicU32,
     transactions_total: AtomicU32,
@@ -120,13 +121,12 @@ pub struct MetricsState {
     validators: parking_lot::RwLock<Vec<StoredValidatorInfo>>,
     validator_ips: parking_lot::RwLock<FxHashMap<[u8; 32], String>>,
     config_metrics: parking_lot::Mutex<Option<ConfigMetrics>>,
-    engine_metrics: parking_lot::Mutex<Option<Arc<EngineMetrics>>>,
     persistent_state: parking_lot::Mutex<Option<PersistentStateInfo>>,
 }
 
 impl MetricsState {
-    pub fn set_engine_metrics(&self, engine_metrics: &Arc<EngineMetrics>) {
-        *self.engine_metrics.lock() = Some(engine_metrics.clone());
+    pub fn set_engine_ref(&self, engine: &Arc<ton_indexer::Engine>) {
+        self.engine.store(Arc::downgrade(engine));
     }
 
     pub fn aggregate_block_info(&self, info: BlockInfo) {
@@ -478,17 +478,19 @@ impl std::fmt::Display for MetricsState {
                 .value(1)?;
         }
 
-        if let Some(engine) = &*self.engine_metrics.lock() {
+        if let Some(engine) = self.engine.load().upgrade() {
+            let metrics = engine.metrics();
+
             f.begin_metric("frmon_mc_time_diff")
-                .value(engine.mc_time_diff.load(Ordering::Acquire))?;
+                .value(metrics.mc_time_diff.load(Ordering::Acquire))?;
 
             f.begin_metric("frmon_mc_shard_seqno").value(
-                engine
+                metrics
                     .last_shard_client_mc_block_seqno
                     .load(Ordering::Acquire),
             )?;
 
-            let last_shard_client_mc_block_utime = engine
+            let last_shard_client_mc_block_utime = metrics
                 .last_shard_client_mc_block_utime
                 .load(Ordering::Acquire);
 
@@ -498,12 +500,12 @@ impl std::fmt::Display for MetricsState {
             }
 
             f.begin_metric("frmon_mc_shard_time_diff")
-                .value(engine.shard_client_time_diff.load(Ordering::Acquire))?;
+                .value(metrics.shard_client_time_diff.load(Ordering::Acquire))?;
 
             f.begin_metric("ton_indexer_block_broadcasts_total")
-                .value(engine.block_broadcasts.total.load(Ordering::Acquire))?;
+                .value(metrics.block_broadcasts.total.load(Ordering::Acquire))?;
             f.begin_metric("ton_indexer_block_broadcasts_invalid")
-                .value(engine.block_broadcasts.invalid.load(Ordering::Acquire))?;
+                .value(metrics.block_broadcasts.invalid.load(Ordering::Acquire))?;
 
             macro_rules! downloader_metrics {
                 ($f:ident, $metrics:ident.$name:ident) => {
@@ -516,9 +518,38 @@ impl std::fmt::Display for MetricsState {
                 };
             }
 
-            downloader_metrics!(f, engine.download_next_block_requests);
-            downloader_metrics!(f, engine.download_block_requests);
-            downloader_metrics!(f, engine.download_block_proof_requests);
+            downloader_metrics!(f, metrics.download_next_block_requests);
+            downloader_metrics!(f, metrics.download_block_requests);
+            downloader_metrics!(f, metrics.download_block_proof_requests);
+
+            let db_metrics = engine.get_db_metrics();
+            f.begin_metric("ton_indexer_db_max_new_mc_cell_count")
+                .value(db_metrics.shard_state_storage.max_new_mc_cell_count)?;
+            f.begin_metric("ton_indexer_db_max_new_sc_cell_count")
+                .value(db_metrics.shard_state_storage.max_new_sc_cell_count)?;
+
+            f.begin_metric("ton_indexer_db_states_gc_running")
+                .value(db_metrics.shard_state_storage.gc_status.is_some() as u8)?;
+
+            if let Some(gc_status) = &db_metrics.shard_state_storage.gc_status {
+                let workchain = gc_status.current_shard.workchain_id();
+                let shard = make_short_shard_name(gc_status.current_shard.shard_prefix_with_tag());
+
+                f.begin_metric("ton_indexer_db_states_gc_start_seqno")
+                    .label(WORKCHAIN, workchain)
+                    .label(SHARD, &shard)
+                    .value(gc_status.start_seqno)?;
+
+                f.begin_metric("ton_indexer_db_states_gc_end_seqno")
+                    .label(WORKCHAIN, workchain)
+                    .label(SHARD, &shard)
+                    .value(gc_status.end_seqno)?;
+
+                f.begin_metric("ton_indexer_db_states_gc_current_seqno")
+                    .label(WORKCHAIN, workchain)
+                    .label(SHARD, &shard)
+                    .value(gc_status.current_seqno.load(Ordering::Acquire))?;
+            }
         }
 
         if let Some(persistent_state) = &*self.persistent_state.lock() {

@@ -44,7 +44,8 @@ impl Engine {
                 .context("Failed to start TON node")?;
 
         // Set engine metrics object
-        metrics_state.set_engine_metrics(ton_engine.metrics());
+        metrics_state.set_engine_ref(&ton_engine);
+
         // Done
         Ok(Self {
             _exporter: exporter,

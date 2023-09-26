@@ -8,7 +8,7 @@ members = ["geoip-resolver"]
 
 [dependencies]
 anyhow = "1.0"
-arc-swap = "1.5"
+arc-swap = { version = "1.5", features = ["weak"] }
 argh = "0.1"
 async-trait = "0.1"
 broxus-util = { version = "0.2", default-features = false, features = [
